@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ReturnReady Gate 0</title>
+  <main><h1>ReturnReady Gate 0</h1><p id="status">Checking WebMCP…</p></main>
+  <script type="module">
+    const status = document.querySelector('#status');
+    if (!document.modelContext?.registerTool) {
+      status.textContent = 'WebMCP unavailable';
+    } else {
+      const controller = new AbortController();
+      await document.modelContext.registerTool({
+        name: 'ping_returnready',
+        description: 'Confirm that the ReturnReady page can expose a harmless read-only WebMCP tool.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        annotations: { readOnlyHint: true, untrustedContentHint: false },
+        execute: async () => JSON.stringify({ ok: true, message: 'ReturnReady Gate 0 reached' }),
+      }, { signal: controller.signal });
+      status.textContent = 'WebMCP tool registered';
+      window.addEventListener('pagehide', () => controller.abort(), { once: true });
+    }
+  </script>
+</html>
