@@ -52,6 +52,12 @@ section,
   opacity: 0.75;
 }
 
+.webmcp-status {
+  font-size: 0.85rem;
+  color: var(--rr-ink);
+  opacity: 0.75;
+}
+
 /* --- Status text/icon (never colour alone) --------------------------- */
 
 .status {

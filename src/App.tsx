@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ValidationSummary } from './application/returnReadyController';
 import {
   ReturnReadyProvider,
@@ -12,6 +12,7 @@ import { InvestmentCard } from './components/InvestmentCard';
 import { ActivityStrip } from './components/ActivityStrip';
 import { ValidationModal } from './components/ValidationModal';
 import { ReviewPackView } from './components/ReviewPackView';
+import { registerReturnReadyTools } from './webmcp/registerTools';
 
 function ReturnReadyApp() {
   const controller = useReturnReadyController();
@@ -21,6 +22,21 @@ function ReturnReadyApp() {
 
   const generateButtonRef = useRef<HTMLButtonElement>(null);
   const [lastValidation, setLastValidation] = useState<ValidationSummary | null>(null);
+  const [webmcpAvailable, setWebmcpAvailable] = useState<boolean | null>(null);
+
+  // Registers the six WebMCP tools against the same controller instance the
+  // manual UI above uses. Runs once per mount (the controller identity is
+  // stable for the life of the provider); the effect's cleanup aborts the
+  // registration on unmount and on Vite hot-reload of this component, and a
+  // later mount registers again from scratch. Fails safe: when WebMCP is
+  // unavailable, `registerReturnReadyTools` returns `available: false`
+  // without throwing, and the manual UI above is entirely unaffected either
+  // way.
+  useEffect(() => {
+    const { available, controller: abortController } = registerReturnReadyTools(controller);
+    setWebmcpAvailable(available);
+    return () => abortController.abort();
+  }, [controller]);
 
   // Derived from the controller, not local state: once `state.reviewPackId`
   // is set, `generateReviewPack` is idempotent (see `src/domain/reviewPack.ts`
@@ -86,6 +102,11 @@ function ReturnReadyApp() {
         Evidence-first preparation for your investment disposals. ReturnReady does not lodge returns or
         provide tax advice.
       </p>
+      {webmcpAvailable === false && (
+        <p className="webmcp-status">
+          WebMCP unavailable in this browser — manual controls below remain fully available.
+        </p>
+      )}
 
       <ReturnStepper state={state} readiness={readiness} />
 
