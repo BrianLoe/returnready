@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 
@@ -117,6 +117,12 @@ describe('ReturnReady manual workflow', () => {
     expect(dateInput).toHaveAttribute('aria-invalid', 'true');
     expect(dateInput.getAttribute('aria-describedby')).toBe(alert.id);
 
+    // Field-scoped: the OTHER two fields must not be marked invalid.
+    expect(priceInput).not.toHaveAttribute('aria-invalid');
+    expect(priceInput).not.toHaveAttribute('aria-describedby');
+    expect(currencySelect).not.toHaveAttribute('aria-invalid');
+    expect(currencySelect).not.toHaveAttribute('aria-describedby');
+
     // The blocker remains open: no reconciliation-driven success has occurred.
     expect(screen.getByLabelText(/acquisition date/i)).toBeVisible();
 
@@ -127,5 +133,57 @@ describe('ReturnReady manual workflow', () => {
 
     expect(screen.queryByLabelText(/acquisition date/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('marks only the currency select as invalid for a missing-currency error', async () => {
+    render(<App />);
+
+    const dateInput = screen.getByLabelText(/acquisition date/i) as HTMLInputElement;
+    const priceInput = screen.getByLabelText(/unit price/i) as HTMLInputElement;
+    const currencySelect = screen.getByLabelText(/currency/i) as HTMLSelectElement;
+
+    // Valid date/price, but currency left at its unselected placeholder.
+    // fireEvent.submit bypasses the <select required> native constraint (it
+    // does not go through the form's requestSubmit()/reportValidity() gate)
+    // so the component's own client-side currency guard can be exercised.
+    fireEvent.change(dateInput, { target: { value: '2022-09-15' } });
+    fireEvent.change(priceInput, { target: { value: '150' } });
+    fireEvent.submit(currencySelect.closest('form') as HTMLFormElement);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Select a supported currency.');
+    expect(currencySelect).toHaveAttribute('aria-invalid', 'true');
+    expect(currencySelect.getAttribute('aria-describedby')).toBe(alert.id);
+
+    expect(dateInput).not.toHaveAttribute('aria-invalid');
+    expect(dateInput).not.toHaveAttribute('aria-describedby');
+    expect(priceInput).not.toHaveAttribute('aria-invalid');
+    expect(priceInput).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('marks only the unit price field as invalid for a non-positive unit price', async () => {
+    render(<App />);
+
+    const dateInput = screen.getByLabelText(/acquisition date/i) as HTMLInputElement;
+    const priceInput = screen.getByLabelText(/unit price/i) as HTMLInputElement;
+    const currencySelect = screen.getByLabelText(/currency/i) as HTMLSelectElement;
+
+    // Valid date/currency, but a non-positive price. fireEvent.submit
+    // bypasses the <input min="0.01"> native constraint the same way as
+    // above, so the domain's own unitPrice rule is what fires.
+    fireEvent.change(dateInput, { target: { value: '2022-09-15' } });
+    fireEvent.change(priceInput, { target: { value: '0' } });
+    fireEvent.change(currencySelect, { target: { value: 'USD' } });
+    fireEvent.submit(priceInput.closest('form') as HTMLFormElement);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('unitPrice must be a positive finite number.');
+    expect(priceInput).toHaveAttribute('aria-invalid', 'true');
+    expect(priceInput.getAttribute('aria-describedby')).toBe(alert.id);
+
+    expect(dateInput).not.toHaveAttribute('aria-invalid');
+    expect(dateInput).not.toHaveAttribute('aria-describedby');
+    expect(currencySelect).not.toHaveAttribute('aria-invalid');
+    expect(currencySelect).not.toHaveAttribute('aria-describedby');
   });
 });

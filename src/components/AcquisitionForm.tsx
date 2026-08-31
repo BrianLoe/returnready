@@ -9,9 +9,29 @@ import { useReturnReadyController } from '../application/ReturnReadyContext';
 
 const CURRENCIES: readonly Currency[] = ['AUD', 'USD'];
 
+type AcquisitionErrorField = 'date' | 'unitPrice' | 'currency';
+
+// The domain (`src/domain/acquisition.ts`) reports errors as a code plus a
+// human message, not a field key. Map its known messages to the single field
+// they concern so the error can be announced against the field that caused
+// it, rather than against every field at once. A message that doesn't match
+// any known field-specific case (e.g. an unknown event id) is treated as
+// general and is not attached to any single control.
+function fieldForErrorMessage(message: string): AcquisitionErrorField | null {
+  if (message.startsWith('Unsupported currency')) return 'currency';
+  if (message.startsWith('unitPrice')) return 'unitPrice';
+  if (message.startsWith('acquisitionDate')) return 'date';
+  // "No FX evidence found for the supplied acquisition date and currency.":
+  // currency itself has already passed its own validation by this point, so
+  // the acquisition date is the field the user needs to revisit.
+  if (message.startsWith('No FX evidence found')) return 'date';
+  return null;
+}
+
 export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: string }) {
   const controller = useReturnReadyController();
   const [error, setError] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<AcquisitionErrorField | null>(null);
   const headingId = useId();
   const dateId = useId();
   const priceId = useId();
@@ -28,6 +48,7 @@ export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: 
 
     if (!currency) {
       setError('Select a supported currency.');
+      setErrorField('currency');
       return;
     }
 
@@ -38,9 +59,11 @@ export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: 
 
     if (!result.ok) {
       setError(result.error.message);
+      setErrorField(fieldForErrorMessage(result.error.message));
       return;
     }
     setError(null);
+    setErrorField(null);
   }
 
   return (
@@ -57,8 +80,8 @@ export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: 
           inputMode="numeric"
           placeholder="YYYY-MM-DD"
           required
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-invalid={errorField === 'date' ? true : undefined}
+          aria-describedby={errorField === 'date' ? errorId : undefined}
         />
       </div>
 
@@ -71,14 +94,21 @@ export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: 
           min="0.01"
           step="0.01"
           required
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-invalid={errorField === 'unitPrice' ? true : undefined}
+          aria-describedby={errorField === 'unitPrice' ? errorId : undefined}
         />
       </div>
 
       <div className="form-row">
         <label htmlFor={currencyId}>Currency</label>
-        <select id={currencyId} name="currency" defaultValue="" required>
+        <select
+          id={currencyId}
+          name="currency"
+          defaultValue=""
+          required
+          aria-invalid={errorField === 'currency' ? true : undefined}
+          aria-describedby={errorField === 'currency' ? errorId : undefined}
+        >
           <option value="" disabled>
             Select currency
           </option>

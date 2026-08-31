@@ -1,5 +1,4 @@
-import { useRef, useState } from 'react';
-import type { ReviewPack } from './domain/reviewPack';
+import { useMemo, useRef, useState } from 'react';
 import type { ValidationSummary } from './application/returnReadyController';
 import {
   ReturnReadyProvider,
@@ -22,7 +21,19 @@ function ReturnReadyApp() {
 
   const generateButtonRef = useRef<HTMLButtonElement>(null);
   const [lastValidation, setLastValidation] = useState<ValidationSummary | null>(null);
-  const [reviewPack, setReviewPack] = useState<ReviewPack | null>(null);
+
+  // Derived from the controller, not local state: once `state.reviewPackId`
+  // is set, `generateReviewPack` is idempotent (see `src/domain/reviewPack.ts`
+  // -- the `state.reviewPackId === REVIEW_PACK_ID` branch returns
+  // `changed: false` and performs no clone, no activity entry, and no
+  // notify), so calling it here is side-effect-free and keeps this view in
+  // sync with any other actor (including a future WebMCP tool call) that
+  // generates the pack in the same tab.
+  const reviewPack = useMemo(() => {
+    if (!state.reviewPackId) return null;
+    const result = controller.generateReviewPack('human');
+    return result.ok ? result.value.pack : null;
+  }, [state.reviewPackId, controller]);
 
   const managedFundEvidence = state.evidence.find(
     (item) => item.sourceType === 'managed-fund-statement' && item.facts.kind === 'managed-fund-statement',
@@ -49,7 +60,9 @@ function ReturnReadyApp() {
   function handleGenerate() {
     const result = controller.generateReviewPack('human');
     if (result.ok) {
-      setReviewPack(result.value.pack);
+      // The `reviewPack` memo derives from `state.reviewPackId`, which the
+      // controller's `notify()` (triggered above when `result.changed`) will
+      // cause to re-render with -- no local state to set here.
       setLastValidation(null);
     } else {
       refreshValidation();
@@ -64,7 +77,6 @@ function ReturnReadyApp() {
   function handleReset() {
     controller.reset();
     setLastValidation(null);
-    setReviewPack(null);
   }
 
   return (
