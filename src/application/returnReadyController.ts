@@ -92,6 +92,14 @@ export interface ReturnReadyController {
    * domain fact -- so it is exposed through its own read-only accessor.
    */
   isValidationModalOpen(): boolean;
+  /**
+   * Closes the validation modal opened by `validateReviewPack` or a blocked
+   * `generateReviewPack`. Mirrors the private `openValidationModal`: sets
+   * `validationModalOpen = false` and notifies subscribers, but only when
+   * the modal is actually open (idempotent: a no-op, no notify, when it is
+   * already closed). This is UI state only -- it never touches `state`.
+   */
+  closeValidationModal(): void;
 }
 
 const defaultNow = (): string => new Date().toISOString();
@@ -112,6 +120,12 @@ export function createReturnReadyController(options?: { now?: () => string }): R
   function openValidationModal(): void {
     if (validationModalOpen) return;
     validationModalOpen = true;
+    notify();
+  }
+
+  function closeValidationModalInternal(): void {
+    if (!validationModalOpen) return;
+    validationModalOpen = false;
     notify();
   }
 
@@ -259,6 +273,10 @@ export function createReturnReadyController(options?: { now?: () => string }): R
 
     isValidationModalOpen() {
       return validationModalOpen;
+    },
+
+    closeValidationModal() {
+      closeValidationModalInternal();
     },
   };
 }

@@ -1,8 +1,270 @@
 :root {
   color-scheme: light dark;
+  --rr-ink: #16302b;
+  --rr-background: #f5f7f3;
+  --rr-surface: #ffffff;
+  --rr-accent: #176b5b;
+  --rr-blocker: #a4262c;
+  --rr-warning: #8a5a00;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--rr-background);
+  color: var(--rr-ink);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--rr-ink);
+}
+
+section,
+.investment-card,
+.acquisition-form,
+.review-pack,
+.activity-strip {
+  background: var(--rr-surface);
+  border: 1px solid rgba(22, 48, 43, 0.15);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.synthetic-marker {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--rr-ink);
+  opacity: 0.75;
+}
+
+/* --- Status text/icon (never colour alone) --------------------------- */
+
+.status {
+  font-weight: 600;
+}
+
+.status--action-required {
+  color: var(--rr-blocker);
+}
+
+.status--warning {
+  color: var(--rr-warning);
+}
+
+.status--evidence-complete-for-review {
+  color: var(--rr-accent);
+}
+
+.status--unreviewed {
+  color: var(--rr-ink);
+}
+
+/* --- Stepper ----------------------------------------------------------- */
+
+.return-stepper ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+.return-stepper a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.85rem;
+  min-height: 44px;
+  justify-content: center;
+  border: 1px solid rgba(22, 48, 43, 0.25);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--rr-ink);
+  background: var(--rr-surface);
+}
+
+.return-stepper a[aria-current='step'] {
+  border-color: var(--rr-accent);
+  border-width: 2px;
+  font-weight: 700;
+}
+
+.step-label {
+  font-weight: 600;
+}
+
+.step-status {
+  font-size: 0.8rem;
+}
+
+/* --- Forms --------------------------------------------------------------- */
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+label {
+  font-weight: 600;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid rgba(22, 48, 43, 0.35);
+  border-radius: 6px;
+  background: var(--rr-surface);
+  color: var(--rr-ink);
+}
+
+button {
+  min-width: 44px;
+  cursor: pointer;
+  background: var(--rr-accent);
+  color: var(--rr-surface);
+  border-color: var(--rr-accent);
+  font-weight: 600;
+}
+
+button:hover {
+  filter: brightness(1.05);
+}
+
+.field-error {
+  color: var(--rr-blocker);
+  font-weight: 600;
+}
+
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+/* --- Modal --------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 48, 43, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 10;
+}
+
+.modal {
+  background: var(--rr-surface);
+  color: var(--rr-ink);
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 32rem;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(22, 48, 43, 0.35);
+}
+
+/* --- Activity strip -------------------------------------------------------- */
+
+.activity-strip ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.activity-strip li {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(22, 48, 43, 0.1);
+}
+
+.activity-actor {
+  font-weight: 700;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Review pack ----------------------------------------------------------- */
+
+.review-pack table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.review-pack th,
+.review-pack td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(22, 48, 43, 0.15);
+}
+
+.disclaimer {
+  font-weight: 700;
+}
+
+/* --- Accessibility ----------------------------------------------------------- */
+
+:focus-visible {
+  outline: 3px solid var(--rr-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  main {
+    padding: 1rem;
+  }
+
+  .return-stepper ol {
+    flex-direction: column;
+  }
+
+  .action-bar {
+    flex-direction: column;
+  }
+
+  .action-bar button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -311,6 +311,43 @@ describe('createReturnReadyController: generateReviewPack', () => {
   });
 });
 
+describe('createReturnReadyController: closeValidationModal (R7)', () => {
+  it('closes an open modal and notifies exactly once', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+    controller.validateReviewPack('human');
+    expect(controller.isValidationModalOpen()).toBe(true);
+
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    controller.closeValidationModal();
+
+    expect(controller.isValidationModalOpen()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op, with no notify, when the modal is already closed', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+    expect(controller.isValidationModalOpen()).toBe(false);
+
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    controller.closeValidationModal();
+
+    expect(controller.isValidationModalOpen()).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('reset still clears an open modal', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+    controller.validateReviewPack('human');
+    expect(controller.isValidationModalOpen()).toBe(true);
+
+    controller.reset();
+
+    expect(controller.isValidationModalOpen()).toBe(false);
+  });
+});
+
 describe('createReturnReadyController: reset', () => {
   it('recreates the exact opening fixture and clears pack, activity, and modal state', () => {
     const controller = createReturnReadyController({ now: fixedNow });

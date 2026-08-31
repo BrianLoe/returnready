@@ -1,0 +1,102 @@
+// Records a user-attested acquisition date, unit price, and currency for one
+// investment event. Renders only when that event still needs these facts.
+// Submitting calls `controller.recordAcquisitionDetails` with actor
+// 'human' and branches on the returned `Result` -- it never assumes success.
+
+import { useId, useState } from 'react';
+import type { Currency } from '../domain/model';
+import { useReturnReadyController } from '../application/ReturnReadyContext';
+
+const CURRENCIES: readonly Currency[] = ['AUD', 'USD'];
+
+export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: string }) {
+  const controller = useReturnReadyController();
+  const [error, setError] = useState<string | null>(null);
+  const headingId = useId();
+  const dateId = useId();
+  const priceId = useId();
+  const currencyId = useId();
+  const errorId = useId();
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const acquisitionDate = String(formData.get('acquisitionDate') ?? '');
+    const unitPriceRaw = String(formData.get('unitPrice') ?? '');
+    const currencyRaw = String(formData.get('currency') ?? '');
+    const currency = CURRENCIES.find((candidate) => candidate === currencyRaw);
+
+    if (!currency) {
+      setError('Select a supported currency.');
+      return;
+    }
+
+    const result = controller.recordAcquisitionDetails(
+      { eventId, acquisitionDate, unitPrice: Number(unitPriceRaw), currency },
+      'human',
+    );
+
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setError(null);
+  }
+
+  return (
+    <form className="acquisition-form" onSubmit={handleSubmit} aria-labelledby={headingId}>
+      <h4 id={headingId}>Record acquisition details for {symbol}</h4>
+      <p>Recorded as a user attestation, not documentary evidence.</p>
+
+      <div className="form-row">
+        <label htmlFor={dateId}>Acquisition date (YYYY-MM-DD)</label>
+        <input
+          id={dateId}
+          name="acquisitionDate"
+          type="text"
+          inputMode="numeric"
+          placeholder="YYYY-MM-DD"
+          required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+        />
+      </div>
+
+      <div className="form-row">
+        <label htmlFor={priceId}>Unit price</label>
+        <input
+          id={priceId}
+          name="unitPrice"
+          type="number"
+          min="0.01"
+          step="0.01"
+          required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+        />
+      </div>
+
+      <div className="form-row">
+        <label htmlFor={currencyId}>Currency</label>
+        <select id={currencyId} name="currency" defaultValue="" required>
+          <option value="" disabled>
+            Select currency
+          </option>
+          {CURRENCIES.map((currency) => (
+            <option key={currency} value={currency}>
+              {currency}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && (
+        <p id={errorId} role="alert" className="field-error">
+          {error}
+        </p>
+      )}
+
+      <button type="submit">Record acquisition details</button>
+    </form>
+  );
+}
