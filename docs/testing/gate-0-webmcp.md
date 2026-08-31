@@ -42,14 +42,19 @@ here because the API is absent by design on this origin.
 
 **Status: PRE-CHECK COMPLETE (mechanism valid; API absent = environmental).**
 
-## Parked — requires the user's Codex / ChatGPT in-app browser
+## Recording-client natural-language proof — PASS (user-verified)
 
-The real recording-client proof (R1 branch (b)) is a human-in-the-loop step that
-cannot be run by the controller or a subagent. It is PARKED per the user's AFK
-authorization to build Tasks 1–7 first.
+The real recording-client proof (R1 branch (b)) is a human-in-the-loop step the
+controller cannot run. On 2026-08-31 the user reported having verified that the
+recording client discovers and invokes a registered WebMCP tool from natural
+language ("i verified its working"). This is recorded as a user attestation — the
+controller did not witness the run, so the exact Codex desktop version and in-app
+browser UA/version were not captured here.
 
-When the user is back, run on a WebMCP-enabled surface (deployed token'd origin,
-or a flag-enabled Chrome that the in-app browser honours):
+**Gate 0 verdict: PASS** (mechanism pre-verified by controller Chrome pre-check;
+recording-client natural-language invocation attested by the user).
+
+Reference procedure, if a fresh capture is ever wanted for the submission:
 
 1. Open the served page in Codex's in-app Browser.
 2. Prompt exactly:
@@ -57,9 +62,3 @@ or a flag-enabled Chrome that the in-app browser honours):
 3. PASS = the agent discovers `ping_returnready`, invokes it, and replies
    `ReturnReady Gate 0 reached`. A typed JS injection or manual button click does
    NOT count.
-4. If discovery/invocation/result fails (branch (b)): record the exact failure and
-   STOP — ask whether to revise the recording client or the spec. Do not
-   substitute Chrome DevTools automation, an extension, or manual execution.
-
-Record the final PASS/FAIL, Codex desktop version, and in-app browser
-UA/version here at that time.
