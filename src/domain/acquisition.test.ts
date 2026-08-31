@@ -153,11 +153,15 @@ describe('recordAcquisitionDetails', () => {
     if (!reconciled.ok) return;
     expect(reconciled.value.state.blockerCount).toBe(1);
 
+    const inputSnapshot = structuredClone(reconciled.value.state);
     const result = recordAcquisitionDetails(reconciled.value.state, validInput, actor, fixedNow);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     expect(result.changed).toBe(true);
+    // The input state object passed in is never mutated in place, even on a
+    // successful, state-changing call -- a fresh state is returned instead.
+    expect(reconciled.value.state).toEqual(inputSnapshot);
     expect(result.value.eventId).toBe('evt-aapl');
     expect(result.value.fxEvidenceId).toBe('ev-fx');
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDemoReturnState } from '../fixtures/demoReturn';
 import type { Actor, InvestmentEvent, ReturnState } from './model';
 import { reconcileEvents } from './reconcile';
+import { validateReviewPack } from './validation';
 
 const actor: Actor = 'human';
 const fixedNow = () => '2026-08-31T00:00:00.000Z';
@@ -15,12 +16,17 @@ function getEvent(state: ReturnState, id: string): InvestmentEvent {
 describe('reconcileEvents', () => {
   it('MSFT becomes evidence-complete-for-review with no issues once reconciled', () => {
     const state = createDemoReturnState();
+    const inputSnapshot = structuredClone(state);
     const result = reconcileEvents(state, ['evt-msft'], actor, fixedNow);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.changed).toBe(true);
     expect(result.value.issues).toEqual([]);
+    // The input state object is never mutated in place -- reconcileEvents
+    // returns a fresh state and leaves the caller's object untouched, even
+    // on a successful, state-changing call.
+    expect(state).toEqual(inputSnapshot);
 
     const msft = getEvent(result.value.state, 'evt-msft');
     expect(msft.status).toBe('evidence-complete-for-review');
@@ -177,5 +183,16 @@ describe('reconcileEvents', () => {
     // original fixture ids.
     expect(renamedMsft.linkedEvidenceIds).toContain('ev-broker');
     expect(renamedAapl.linkedEvidenceIds).toContain('ev-broker');
+
+    // validateReviewPack must reach the same fact-driven conclusion
+    // independently -- the original-fixture assertions in validation.test.ts
+    // cannot distinguish a symbol/id-keyed implementation from a
+    // facts-keyed one, because on the original fixture both produce
+    // identical output. Only this inverted fixture separates the two.
+    const validated = validateReviewPack(result.value.state);
+    expect(
+      validated.issues.some((i) => i.eventId === 'evt-renamed-a' && i.code === 'missing-acquisition'),
+    ).toBe(true);
+    expect(validated.issues.some((i) => i.eventId === 'evt-renamed-b')).toBe(false);
   });
 });
