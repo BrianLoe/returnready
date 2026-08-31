@@ -3,3 +3,8 @@ node_modules/
 dist/
 .env
 .env.*
+.devpost-hackathon-state.json
+.playwright-mcp/
+coverage/
+test-results/
+playwright-report/
