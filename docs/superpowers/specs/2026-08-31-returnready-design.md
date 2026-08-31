@@ -1,30 +1,30 @@
 # ReturnReady Design Specification
 
 Date: 2026-08-31
-Status: Approved in conversation; pending written-spec review
+Status: Approved in conversation and reconciled after adversarial review; pending user review of the written specification
 Target: WebMCP Challenge prototype and public demo under three minutes
 
 ## 1. Product Summary
 
 ReturnReady is an evidence-first tax-readiness workspace for Australian employees who also invest. It gives users a whole-return readiness view while concentrating its interactive depth on the painful reconciliation of foreign-share and crypto disposal evidence.
 
-The product does not lodge a tax return or calculate authoritative tax. It converts already-imported, synthetic evidence into a transparent, accountant-ready review pack. A browser agent uses WebMCP tools to invoke the same domain actions available through the human interface, and every action remains visible in the page.
+The product does not lodge a tax return, calculate authoritative tax, or certify that a position is tax-complete. It converts already-imported, synthetic evidence into a transparent pack for accountant review. A browser agent uses WebMCP tools to invoke the same domain actions available through the human interface, and every state-changing action remains visible in the page.
 
 One-line pitch:
 
-> ReturnReady turns scattered tax evidence into an evidence-linked, review-ready Australian tax pack, using WebMCP to reconcile records, expose gaps, and resolve blockers with the user.
+> ReturnReady turns scattered tax evidence into an evidence-linked Australian accountant-review pack, using WebMCP to reconcile records, expose gaps, and resolve blockers with the user.
 
 ## 2. Target User and Core Story
 
 The demonstration user is an Australian hybrid software engineer with PAYG income, ordinary work deductions, Australian managed-fund holdings, foreign shares, and crypto assets.
 
-Their income and work-deduction evidence is already reconciled. Their investment evidence contains foreign-share and crypto disposal records that are difficult to prepare confidently because the source exports do not contain every fact needed for review.
+Their income and work-deduction sections are previously reviewed demo fixtures and are not processed by this prototype. Their investment evidence contains foreign-share and crypto disposal records that are difficult to prepare confidently because the source exports do not contain every fact needed for review.
 
 The user asks their browser agent:
 
 > Make my investment section ready for my accountant.
 
-The agent inspects the available evidence, reconciles complete events, exposes one blocker and one warning, asks the user for missing acquisition details, records the answer, reruns validation, and generates the whole-return review pack.
+The agent inspects the available evidence, reconciles events with complete review inputs, exposes one blocker and one warning, asks the user for missing acquisition details, records the answer as a user attestation, reruns validation, and generates the whole-return review pack with the unresolved warning disclosed.
 
 ## 3. Goals
 
@@ -53,8 +53,8 @@ The agent inspects the available evidence, reconciles complete events, exposes o
 
 ReturnReady presents three return sections:
 
-1. **Income** — pre-populated and marked ready.
-2. **Work deductions** — several evidence-linked items, already validated and marked ready.
+1. **Income** — a pre-populated fixture labelled `Previously reviewed — not processed by this prototype`.
+2. **Work deductions** — a pre-populated fixture labelled `Previously reviewed — not processed by this prototype`.
 3. **Investments** — the only deeply interactive section and the hero workflow.
 
 This creates the shape of a complete preparation product without implementing multiple tax engines. Income and deductions establish context; investments demonstrate the core value.
@@ -74,13 +74,13 @@ Evidence records:
 
 Investment events:
 
-1. **MSFT disposal — ready.** Acquisition and disposal records are complete and linked.
-2. **AAPL transferred parcel — blocker.** The broker export contains the disposal but not the original acquisition date or USD unit cost from before the transfer.
+1. **MSFT disposal — evidence complete for review.** The fixture contains linked quantity provenance, acquisition and disposal dates, proceeds, unit costs, brokerage and fees, dated FX evidence, and an explicit assertion that no relevant corporate action occurred.
+2. **AAPL transferred parcel — blocker.** The fixture contains linked quantity provenance, disposal date, proceeds, disposal brokerage, dated disposal FX evidence, and an explicit assertion that no relevant corporate action occurred. The broker export does not contain the original acquisition date or USD unit cost from before the transfer. Once the user supplies those two facts, the fixture contains all other review inputs and matching acquisition-date FX evidence.
 3. **BTC disposal — warning.** The disposal is present, but the exchange export does not include its transaction fee.
 
-The AAPL event already contains the disposed quantity. The user supplies only the missing acquisition date and USD unit cost in conversation. Once recorded, ReturnReady matches the corresponding supplied FX evidence and clears the blocker.
+The AAPL event already contains the disposed quantity and all other facts listed above. The user supplies only the missing acquisition date and USD unit cost in conversation. ReturnReady records them as `user-attested`, not as documentary evidence. It then matches the corresponding supplied FX evidence and clears the blocker.
 
-The missing crypto fee remains a visible, non-blocking warning in the generated pack.
+The missing crypto fee remains a visible, non-blocking warning in the generated pack. The Investments section is then labelled `Review pack generated with unresolved warning`, never `tax complete` or `ready to lodge`.
 
 ## 7. User Experience
 
@@ -100,7 +100,7 @@ Each card displays its readiness state, linked evidence count, detected events, 
 
 ### 7.2 Status language
 
-- **Ready:** required evidence and details are present.
+- **Evidence complete for review:** the prototype's explicitly scoped review inputs are present; this is not a tax-completeness claim.
 - **Action required:** at least one blocking issue prevents pack generation.
 - **Warning:** review may proceed, but the unresolved issue must remain disclosed.
 - **Excluded:** a record was deliberately omitted with a visible reason.
@@ -116,7 +116,7 @@ Invoking the action runs deterministic validation. If blockers exist, ReturnRead
 Opening state:
 
 - Overall readiness is incomplete.
-- Income and Deductions are ready.
+- Income and Deductions are visibly labelled as previously reviewed fixtures that this prototype does not process.
 - Investments show one blocker and one warning.
 - No review pack exists.
 
@@ -124,18 +124,24 @@ Agent flow:
 
 1. Read the whole-return status.
 2. Inspect the imported investment evidence and detected events.
-3. Reconcile complete evidence and visibly update the Investments cards.
+3. Reconcile the selected events from their normalized evidence and visibly update each Investments card.
 4. Report the AAPL acquisition blocker and BTC fee warning.
 5. Ask the user for the AAPL acquisition date and USD unit cost.
-6. Record the user's structured answer and link the applicable FX evidence.
+6. Record the user's structured answer as a user attestation and link the applicable FX evidence.
 7. Rerun validation; the blocker clears while the warning remains.
-8. Generate the review pack.
+8. Generate the review pack with the warning and attestation clearly disclosed.
 
 The flow has one user interruption and no hidden setup during recording. A **Reset demo** control restores the exact opening state.
 
 ## 9. Technical Architecture
 
 ReturnReady is a static React and TypeScript single-page application built with Vite. It has no backend. Synthetic fixtures, domain logic, validation, state, and review-pack rendering run in the browser.
+
+### 9.1 P0 delivery scope
+
+P0 contains only the Investments step, the two previously reviewed context steps, the validation modal, compact activity strip, review-pack view, reset control, six WebMCP tools, essential domain and tool-contract tests, and one real-agent end-to-end path. It excludes decorative animation, export formats, extra tax categories, alternate navigation, and broad browser support.
+
+The broader accessibility checks and prompt-eval matrix remain required before submission when they affect the judged path; refinements outside that path are stretch work after three successful demo replays.
 
 The architecture has five boundaries:
 
@@ -228,7 +234,7 @@ Tools use the imperative `document.modelContext.registerTool()` API and register
 - Inputs: none.
 - Output: section statuses, blocker count, warning count, and whether a pack can be generated.
 - Mutation: none.
-- Annotation: read-only.
+- Annotations: `readOnlyHint: true`, `untrustedContentHint: false`.
 
 ### `list_investment_evidence`
 
@@ -236,15 +242,17 @@ Tools use the imperative `document.modelContext.registerTool()` API and register
 - Inputs: optional status filter from an enum.
 - Output: stable IDs and normalized fields only; no raw document instructions.
 - Mutation: none.
-- Annotations: read-only and untrusted-content-aware.
+- Annotations: `readOnlyHint: true`, `untrustedContentHint: true`.
 
 ### `reconcile_investment_evidence`
 
 - Purpose: Apply deterministic matching rules to imported evidence and investment events.
-- Inputs: none for the fixed demo dataset.
+- Inputs: a required array of one or more stable event IDs discovered through `list_investment_evidence`.
 - Output: linked events, unresolved blocker, unresolved warning, and concise next action.
 - Mutation: evidence links, event statuses, issues, and activity entry.
 - Repeat behavior: idempotent.
+- Annotation: `readOnlyHint: false`, `untrustedContentHint: false`.
+- Generality requirement: the implementation operates over evidence and event arrays rather than fixture-specific branches. A second altered fixture must produce different links and issues in tests.
 
 ### `record_acquisition_details`
 
@@ -253,6 +261,8 @@ Tools use the imperative `document.modelContext.registerTool()` API and register
 - Output: updated event readiness and matched FX-evidence identifier.
 - Mutation: only the named event and activity log.
 - Validation: rejects unknown IDs, invalid dates, unsupported currencies, and non-positive values without changing state.
+- Provenance: records the values as a user attestation, not documentary evidence.
+- Annotation: `readOnlyHint: false`, `untrustedContentHint: false`.
 
 ### `validate_review_pack`
 
@@ -261,6 +271,7 @@ Tools use the imperative `document.modelContext.registerTool()` API and register
 - Output: blocker and warning objects plus `canGenerate`.
 - Mutation: validation result and modal visibility only.
 - Repeat behavior: idempotent.
+- Annotation: `readOnlyHint: false`, `untrustedContentHint: false`, because the call changes visible application state.
 
 ### `generate_review_pack`
 
@@ -270,6 +281,9 @@ Tools use the imperative `document.modelContext.registerTool()` API and register
 - Mutation: generated pack and activity entry.
 - Guard: refuses when any blocker exists.
 - Consequence boundary: creates no external file, network request, tax calculation, or lodgement.
+- Annotation: `readOnlyHint: false`, `untrustedContentHint: false`.
+
+All tool names and parameter names remain within 30 characters, parameter descriptions within 150 characters, tool descriptions within 500 characters, and each individual output within 1,500 characters. These budgets follow current Chrome security guidance and are verified by contract tests.
 
 ## 12. Deterministic Rules
 
@@ -277,10 +291,10 @@ The browser agent orchestrates tools and converses with the user, but tax-readin
 
 Rules required for the prototype:
 
-- A disposal event is not ready when its required acquisition date or acquisition unit cost is absent.
+- A disposal event is not evidence-complete for review when its required acquisition date or acquisition unit cost is absent.
 - A user-supplied acquisition date must precede the disposal date.
 - Monetary values must be positive and use a supported currency.
-- Each ready event must link to acquisition and disposal evidence or explicitly identify user-supplied acquisition facts.
+- Each event marked evidence-complete for review must link to acquisition and disposal evidence or explicitly identify user-attested acquisition facts.
 - Required FX evidence must exist for the event's supplied dates before the blocker clears.
 - A missing transaction fee is a warning, not a blocker, for this preparatory pack.
 - Pack generation is forbidden while any blocker remains.
@@ -332,7 +346,7 @@ These rules establish evidence completeness for review; they do not determine de
 - Missing acquisition facts produce the expected blocker.
 - Valid acquisition details clear the blocker.
 - Invalid dates, prices, currencies, and identifiers leave state unchanged.
-- Missing crypto fees produce a warning.
+- Missing crypto fees produce a warning and prevent any claim that the Investments section is tax-complete.
 - Warnings do not prevent pack generation.
 - Blockers do prevent pack generation.
 - Reset reproduces the exact fixture state.
@@ -341,8 +355,8 @@ These rules establish evidence completeness for review; they do not determine de
 
 - Each registered schema matches its handler inputs.
 - Read-only tools do not mutate state.
-- Mutating tools create exactly one activity entry.
-- Repeated calls remain idempotent.
+- A first state-changing tool call creates exactly one activity entry.
+- Repeated idempotent calls create no additional activity entry.
 - Tool errors are structured, concise, and actionable.
 - Tool output excludes raw untrusted instructions.
 
@@ -360,29 +374,45 @@ These rules establish evidence completeness for review; they do not determine de
 - Ambiguous request: ask for clarification without mutating records incorrectly.
 - Invalid acquisition value: reject and recover.
 - Repeat request: do not duplicate links or pack entries.
-- Prompt injection embedded in evidence: ignore it and operate only on normalized fields.
+- Hostile source text fixture: prove the normalization boundary excludes the text from tool output. This is a boundary test, not a claim of end-to-end document-injection defence because arbitrary documents are outside scope.
 - Overreach request: refuse or explain that ReturnReady cannot lodge or calculate authoritative tax.
 
 ## 17. Demo Success Criteria
 
 The prototype is ready to record when:
 
-- A browser agent discovers and invokes the intended WebMCP tools from one natural-language goal.
-- The Investments UI visibly moves from blocked to review-ready after one user interruption.
+- Codex's in-app Browser discovers and invokes the intended WebMCP tools from one natural-language goal on the deployed origin.
+- The Investments UI visibly moves from blocked to `Review pack generated with unresolved warning` after one user interruption.
 - The AAPL blocker and BTC warning behave exactly as specified.
 - The final review pack includes evidence links, the unresolved warning, and limitations.
 - No hidden manual correction is required during the recorded path.
-- Reset and replay succeed repeatedly.
-- The complete narrated workflow fits comfortably under three minutes.
+- Reset and replay succeed three consecutive times without hidden correction.
+- A narrated dry run completes in 165 seconds or less, leaving at least 15 seconds of contingency beneath the submission limit.
 - The video accurately distinguishes existing evidence ingestion, WebMCP tool use, and human confirmation.
 
-## 18. Deployment Assumptions
+### 17.1 Submission acceptance checks
 
-- Development uses a compatible Chrome build with local WebMCP testing enabled.
+- The source repository is public and includes a detectable MIT licence file at its root.
+- The repository contains all source, assets, setup instructions, and testing instructions needed to run the project.
+- The deployed HTTPS URL works without login and remains freely accessible through the judging period.
+- WebMCP tool discovery and execution work on the deployed URL in both the recording client and the judge-supported Chrome path.
+- The production origin-trial token and required response headers are verified after deployment.
+- The public YouTube demonstration is under three minutes and includes audio explaining the product and its WebMCP implementation.
+- Submission text explicitly explains WebMCP fit, improved user experience, human-agent collaboration, and implementation.
+- Third-party marks, music, datasets, and assets are absent or used with documented permission.
+
+## 18. Recording Client and Deployment Assumptions
+
+- The intended recording client is Codex desktop's in-app Browser, matching the user's chosen ChatGPT/Codex agent story and the challenge's judge-supported path.
+- Before UI polish, a Gate 0 spike must deploy or serve a minimal page with one harmless tool and prove that the current Codex in-app Browser can discover and invoke it. Failure is a hard stop requiring user direction before changing recording clients.
+- Development fallback uses Chrome 153 or later with local WebMCP testing enabled and the Model Context Tool Inspector. The fallback verifies tools but is not silently substituted as the recorded agent.
+- Test notes record the exact Codex/ChatGPT desktop version and Chrome version used for the successful run.
 - Public deployment uses a secure origin and the WebMCP origin-trial configuration required at deployment time.
 - The document remains origin-isolated and does not relax its origin with `document.domain`.
 - The `tools` permissions policy remains restricted to the application's own origin.
 - The app is deployable as static assets with any required response headers configured by the hosting platform.
+- One clean-session test against the deployed origin must verify discovery, the complete natural-language chain, reset, and a second replay.
+- Production registration is stable for the document lifetime; development hot-reload cleanup must not be relied upon during recording.
 
 ## 19. Source References
 
@@ -390,6 +420,8 @@ The prototype is ready to record when:
 - Chrome WebMCP imperative API: https://developer.chrome.com/docs/ai/webmcp/imperative-api
 - WebMCP explainer: https://github.com/webmachinelearning/webmcp
 - WebMCP security guide: https://developer.chrome.com/docs/ai/webmcp/secure-tools
+- WebMCP Challenge official rules: https://webmcp.devpost.com/rules
+- ATO capital gains guide: https://www.ato.gov.au/api/public/content/e69fe46564f948f1a935476d86d6b5aa?v=47aa113a
 - ATO managed-fund instructions: https://www.ato.gov.au/api/public/content/0-3c0244a7-f1cc-42d3-b7cf-8c80cab1973b
 - ATO crypto record requirements: https://www.ato.gov.au/individuals-and-families/investments-and-assets/crypto-asset-investments/keeping-crypto-records
 - ATO foreign-currency guidance: https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/foreign-exchange-gains-and-losses/in-detail/guide-to-functional-currency-rules
