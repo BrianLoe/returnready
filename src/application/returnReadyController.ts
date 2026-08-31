@@ -21,7 +21,11 @@ import type {
 } from '../domain/model';
 import { recordAcquisitionDetails as domainRecordAcquisitionDetails } from '../domain/acquisition';
 import { normalizeEvidence } from '../domain/normalizeEvidence';
-import { reconcileEvents } from '../domain/reconcile';
+import {
+  deriveInvestmentsStatusFromEventStatuses,
+  deriveStatusFromIssues,
+  reconcileEvents,
+} from '../domain/reconcile';
 import type { ReviewPack } from '../domain/reviewPack';
 import { generateReviewPack as domainGenerateReviewPack } from '../domain/reviewPack';
 import { validateReviewPack as domainValidateReviewPack } from '../domain/validation';
@@ -139,16 +143,16 @@ export function createReturnReadyController(options?: { now?: () => string }): R
       const blockerCount = issues.filter((issue) => issue.severity === 'blocker').length;
       const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
 
-      // Rolling the domain-derived counts up to one section-level label is
-      // simple composition over `canGenerate`/severities already computed by
-      // the domain -- it does not re-derive *which* facts produce an issue.
-      const investmentsStatus: InvestmentsStatus = !canGenerate
-        ? 'action-required'
-        : warningCount > 0
-          ? 'warning'
-          : state.events.length > 0
-            ? 'evidence-complete-for-review'
-            : 'unreviewed';
+      // Roll fresh per-event statuses up to one section-level label by
+      // reusing the exact domain rollup rule (`deriveInvestmentsStatusFromEventStatuses`),
+      // fed with per-event statuses derived from these same fresh issues via
+      // `deriveStatusFromIssues` -- both exported from `reconcile.ts`. This
+      // never re-derives the rule itself, only supplies it fresh (not yet
+      // persisted) inputs.
+      const freshEventStatuses = state.events.map((event) =>
+        deriveStatusFromIssues(issues.filter((issue) => issue.eventId === event.id)),
+      );
+      const investmentsStatus = deriveInvestmentsStatusFromEventStatuses(freshEventStatuses);
 
       return {
         incomeStatus: state.incomeStatus,

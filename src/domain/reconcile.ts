@@ -91,19 +91,39 @@ export function deriveIssuesForEvents(events: readonly InvestmentEvent[]): Valid
   return issues;
 }
 
-function deriveStatusFromIssues(issues: readonly ValidationIssue[]): EventStatus {
+/**
+ * The single source of truth for "what status does one event have, given
+ * exactly these issues". Exported so callers that need a status derived
+ * from freshly-computed issues -- without first persisting them onto
+ * `state` -- (e.g. a read-only readiness summary) can reuse this instead of
+ * re-deriving the same threshold rule.
+ */
+export function deriveStatusFromIssues(issues: readonly ValidationIssue[]): EventStatus {
   if (issues.some((issue) => issue.severity === 'blocker')) return 'action-required';
   if (issues.some((issue) => issue.severity === 'warning')) return 'warning';
   return 'evidence-complete-for-review';
 }
 
-function deriveInvestmentsStatus(events: readonly InvestmentEvent[]): InvestmentsStatus {
-  if (events.some((event) => event.status === 'action-required')) return 'action-required';
-  if (events.some((event) => event.status === 'warning')) return 'warning';
-  if (events.length > 0 && events.every((event) => event.status === 'evidence-complete-for-review')) {
+/**
+ * The single source of truth for rolling a set of per-event statuses up
+ * into one investments-section status. Exported (alongside
+ * `deriveStatusFromIssues`) so callers with freshly-derived, not-yet-
+ * persisted per-event statuses can reuse this rollup rule instead of
+ * re-deriving it.
+ */
+export function deriveInvestmentsStatusFromEventStatuses(
+  statuses: readonly EventStatus[],
+): InvestmentsStatus {
+  if (statuses.some((status) => status === 'action-required')) return 'action-required';
+  if (statuses.some((status) => status === 'warning')) return 'warning';
+  if (statuses.length > 0 && statuses.every((status) => status === 'evidence-complete-for-review')) {
     return 'evidence-complete-for-review';
   }
   return 'unreviewed';
+}
+
+function deriveInvestmentsStatus(events: readonly InvestmentEvent[]): InvestmentsStatus {
+  return deriveInvestmentsStatusFromEventStatuses(events.map((event) => event.status));
 }
 
 /**

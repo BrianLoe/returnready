@@ -49,6 +49,23 @@ describe('createReturnReadyController: opening state (R6′)', () => {
     expect(controller.getState().activity).toEqual([]);
     expect(controller.getState().issues).toEqual([]);
   });
+
+  it('investmentsStatus rolls to "warning" once the blocker is resolved but a warning remains', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+
+    // Resolves AAPL's missing-acquisition blocker; BTC's missing-crypto-fee
+    // warning is untouched (no wrapped domain action can set a disposal
+    // fee), so the fresh per-event rollup should land on 'warning', not
+    // 'evidence-complete-for-review' or 'action-required'.
+    const result = controller.recordAcquisitionDetails(AAPL_ACQUISITION_INPUT, 'human');
+    expect(result.ok).toBe(true);
+
+    const readiness = controller.getReturnReadiness();
+    expect(readiness.blockerCount).toBe(0);
+    expect(readiness.warningCount).toBe(1);
+    expect(readiness.canGenerate).toBe(true);
+    expect(readiness.investmentsStatus).toBe('warning');
+  });
 });
 
 describe('createReturnReadyController: reads never mutate or notify', () => {
