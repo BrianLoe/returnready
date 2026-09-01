@@ -11,6 +11,8 @@
 import type {
   Actor,
   Currency,
+  DeductionInput,
+  DisposalInput,
   EventStatus,
   FixtureSectionStatus,
   InvestmentsStatus,
@@ -24,7 +26,12 @@ import { normalizeEvidence } from '../domain/normalizeEvidence';
 import { deriveInvestmentsStatusFromIssues, reconcileEvents } from '../domain/reconcile';
 import type { ReviewPack } from '../domain/reviewPack';
 import { generateReviewPack as domainGenerateReviewPack } from '../domain/reviewPack';
-import { validateReviewPack as domainValidateReviewPack } from '../domain/validation';
+import {
+  validateDraftReviewPack as domainValidateDraftReviewPack,
+  validateReviewPack as domainValidateReviewPack,
+} from '../domain/validation';
+import { recordDeductions as domainRecordDeductions } from '../domain/recordDeductions';
+import { recordDisposals as domainRecordDisposals } from '../domain/recordDisposals';
 import { createDemoReturnState } from '../fixtures/demoReturn';
 
 // --- Summary/return types ---------------------------------------------------
@@ -46,6 +53,20 @@ export interface ReturnReadiness {
 export interface ReconcileSummary {
   reconciledEventIds: readonly string[];
   issues: readonly ValidationIssue[];
+}
+
+export interface ReturnDraftSummary {
+  incomeSummary: ReturnState['incomeSummary'];
+  deductionCount: number;
+  disposalCount: number;
+  blockerCount: number;
+  warningCount: number;
+  canGenerate: boolean;
+  issues: readonly ValidationIssue[];
+}
+
+export interface RecordBatchSummary {
+  recordedIds: readonly string[];
 }
 
 export interface AcquisitionSummary {
@@ -75,6 +96,9 @@ export interface ReturnReadyController {
   getState(): ReturnState;
   subscribe(listener: () => void): () => void;
   reset(): void;
+  getReturnDraft(): ReturnDraftSummary;
+  recordDeductions(inputs: readonly DeductionInput[], actor: Actor): Result<RecordBatchSummary>;
+  recordDisposals(inputs: readonly DisposalInput[], actor: Actor): Result<RecordBatchSummary>;
   getReturnReadiness(): ReturnReadiness;
   listInvestmentEvidence(filter?: EventStatus): readonly NormalizedEvidenceSummary[];
   reconcileInvestmentEvidence(eventIds: readonly string[], actor: Actor): Result<ReconcileSummary>;
@@ -143,13 +167,57 @@ export function createReturnReadyController(options?: { now?: () => string }): R
       notify();
     },
 
+    getReturnDraft() {
+      const { issues, canGenerate } = domainValidateDraftReviewPack(state);
+      return {
+        incomeSummary: state.incomeSummary,
+        deductionCount: state.deductions.length,
+        disposalCount: state.disposals.length,
+        blockerCount: issues.filter((issue) => issue.severity === 'blocker').length,
+        warningCount: issues.filter((issue) => issue.severity === 'warning').length,
+        canGenerate,
+        issues,
+      };
+    },
+
+    recordDeductions(inputs, actor) {
+      const result = domainRecordDeductions(state, inputs, actor, now);
+      if (!result.ok) return result;
+      if (result.changed) {
+        state = result.value.state;
+        notify();
+      }
+      return {
+        ok: true,
+        changed: result.changed,
+        value: { recordedIds: result.value.recordedIds },
+      };
+    },
+
+    recordDisposals(inputs, actor) {
+      const result = domainRecordDisposals(state, inputs, actor, now);
+      if (!result.ok) return result;
+      if (result.changed) {
+        state = result.value.state;
+        notify();
+      }
+      return {
+        ok: true,
+        changed: result.changed,
+        value: { recordedIds: result.value.recordedIds },
+      };
+    },
+
     getReturnReadiness() {
       // Read-only: re-derives issues straight from the current event facts
       // via the domain's own `validateReviewPack`, without touching `state`
       // or logging activity. This is what lets the opening screen already
       // show "Action required" with 1 blocker + 1 warning before anything
       // has been reconciled.
-      const { issues, canGenerate } = domainValidateReviewPack(state);
+      const { issues, canGenerate } =
+        state.deductions.length > 0 || state.disposals.length > 0 || state.events.length === 0
+          ? domainValidateDraftReviewPack(state)
+          : domainValidateReviewPack(state);
       const blockerCount = issues.filter((issue) => issue.severity === 'blocker').length;
       const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
 
@@ -232,7 +300,10 @@ export function createReturnReadyController(options?: { now?: () => string }): R
       // the validation modal so the user sees why generation is (or isn't)
       // available. This never touches domain `state`, so `changed` is
       // always false here regardless of the modal's own open/closed change.
-      const { issues, canGenerate } = domainValidateReviewPack(state);
+      const { issues, canGenerate } =
+        state.deductions.length > 0 || state.disposals.length > 0 || state.events.length === 0
+          ? domainValidateDraftReviewPack(state)
+          : domainValidateReviewPack(state);
       openValidationModal();
 
       return {

@@ -21,6 +21,88 @@ const AAPL_ACQUISITION_INPUT = {
   currency: 'USD' as const,
 };
 
+const WFH_INPUT = {
+  sourceRecordId: 'wfh-summary-01',
+  category: 'work-from-home' as const,
+  description: 'Work-from-home hours',
+  periodStart: '2025-07-08',
+  periodEnd: '2026-05-19',
+  quantity: 40,
+  unit: 'hours' as const,
+  currency: 'AUD' as const,
+  sourceLabel: 'wfh-hours-fy2025-26.csv',
+};
+
+const DRAFT_AAPL_INPUT = {
+  sourceRecordId: 'broker-aapl-01',
+  assetType: 'foreign-share' as const,
+  symbol: 'AAPL',
+  quantity: 30,
+  disposalDate: '2026-05-02',
+  proceedsMinor: 525_000,
+  currency: 'USD' as const,
+  sourceLabel: 'foreign-broker-fy2025-26.csv',
+};
+
+describe('createReturnReadyController: populated draft actions', () => {
+  it('reads the sparse draft without mutation or notification', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+    const before = controller.getState();
+    const listener = vi.fn();
+    controller.subscribe(listener);
+
+    expect(controller.getReturnDraft()).toMatchObject({
+      deductionCount: 0,
+      disposalCount: 0,
+      blockerCount: 0,
+      warningCount: 0,
+      canGenerate: true,
+    });
+    expect(controller.getState()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('records deduction and disposal batches, notifies once per changed call, and not on repeats', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+    const listener = vi.fn();
+    controller.subscribe(listener);
+
+    const deductions = controller.recordDeductions([WFH_INPUT], 'agent');
+    const disposals = controller.recordDisposals([DRAFT_AAPL_INPUT], 'agent');
+    expect(deductions.ok).toBe(true);
+    expect(disposals.ok).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(controller.getState().deductions).toHaveLength(1);
+    expect(controller.getState().disposals).toHaveLength(1);
+
+    listener.mockClear();
+    const repeat = controller.recordDeductions([WFH_INPUT], 'agent');
+    expect(repeat.ok).toBe(true);
+    if (!repeat.ok) return;
+    expect(repeat.changed).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('uses draft validation after entries are populated and preserves state on invalid input', () => {
+    const controller = createReturnReadyController({ now: fixedNow });
+    controller.recordDeductions([WFH_INPUT], 'agent');
+    controller.recordDisposals([DRAFT_AAPL_INPUT], 'agent');
+    const before = controller.getState();
+
+    const invalid = controller.recordDisposals([{ ...DRAFT_AAPL_INPUT, quantity: 0 }], 'agent');
+    expect(invalid.ok).toBe(false);
+    expect(controller.getState()).toBe(before);
+
+    const validation = controller.validateReviewPack('agent');
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) return;
+    expect(validation.value.issues.map((issue) => issue.code).sort()).toEqual([
+      'deduction-amount-not-calculated',
+      'missing-acquisition',
+    ]);
+  });
+});
+
 describe('createReturnReadyController: opening state (R6′)', () => {
   it('opens with the exact facts-only fixture -- no init-time reconcile', () => {
     const controller = createReturnReadyController({ now: fixedNow });
