@@ -1,4 +1,5 @@
 import type { ReturnState, ValidationIssue } from './model';
+import type { InvestmentsStatus } from './model';
 
 export const FY_START = '2025-07-01';
 export const FY_END = '2026-06-30';
@@ -71,13 +72,18 @@ export function refreshDraftIssues(state: ReturnState): ValidationIssue[] {
   state.blockerCount = issues.filter((issue) => issue.severity === 'blocker').length;
   state.warningCount = issues.filter((issue) => issue.severity === 'warning').length;
 
-  const disposalIssues = issues.filter((issue) => issue.eventId.startsWith('disposal-'));
-  if (state.disposals.length === 0) state.investmentsStatus = 'unreviewed';
-  else if (disposalIssues.some((issue) => issue.severity === 'blocker')) {
-    state.investmentsStatus = 'action-required';
-  } else if (disposalIssues.some((issue) => issue.severity === 'warning')) {
-    state.investmentsStatus = 'warning';
-  } else state.investmentsStatus = 'evidence-complete-for-review';
+  state.investmentsStatus = deriveDraftInvestmentsStatus(state, issues);
 
   return issues;
+}
+
+export function deriveDraftInvestmentsStatus(
+  state: ReturnState,
+  issues: readonly ValidationIssue[],
+): InvestmentsStatus {
+  const disposalIssues = issues.filter((issue) => issue.eventId.startsWith('disposal-'));
+  if (state.disposals.length === 0) return 'unreviewed';
+  if (disposalIssues.some((issue) => issue.severity === 'blocker')) return 'action-required';
+  if (disposalIssues.some((issue) => issue.severity === 'warning')) return 'warning';
+  return 'evidence-complete-for-review';
 }

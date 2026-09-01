@@ -1,93 +1,74 @@
-// Narrow JSON Schemas for the six approved ReturnReady WebMCP tools.
-//
-// Each schema is deliberately restrictive: `additionalProperties: false`,
-// explicit `required` arrays, enums for closed value sets, a pattern for
-// the one date field, and numeric constraints for the one price field.
-// Schemas alone are not a trust boundary -- `registerTools.ts` re-validates
-// every field again inside each tool's `execute` handler -- but a narrow
-// schema keeps well-behaved callers from ever sending shapes the handler
-// has to reject.
-//
-// Tool/parameter names and description lengths here are verified against
-// the WebMCP output budgets (name <= 30 chars, parameter description
-// <= 150 chars, tool description <= 500 chars) by `registerTools.test.ts`.
+const date = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const;
+const positive = { type: 'number', exclusiveMinimum: 0 } as const;
+const positiveMinor = { type: 'integer', minimum: 1 } as const;
+const currency = { type: 'string', enum: ['AUD', 'USD'] } as const;
 
-/** Reused by `registerTools.ts` so the schema enum and handler-side re-validation never drift apart. */
-export const EVENT_STATUS_VALUES = [
-  'unreviewed',
-  'action-required',
-  'evidence-complete-for-review',
-  'warning',
-] as const;
+export const emptyInputSchema = { type: 'object', properties: {}, additionalProperties: false } as const;
+export const getReturnDraftSchema = emptyInputSchema;
 
-const CURRENCY_ENUM = ['AUD', 'USD'] as const;
-
-const ISO_DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
-
-/** No parameters: an empty object, and nothing else. */
-export const emptyInputSchema = {
-  type: 'object',
-  properties: {},
-  additionalProperties: false,
-} as const;
-
-export const getReturnReadinessSchema = emptyInputSchema;
-
-export const listInvestmentEvidenceSchema = {
+export const recordDeductionsSchema = {
   type: 'object',
   properties: {
-    filter: {
-      type: 'string',
-      enum: [...EVENT_STATUS_VALUES],
-      description: 'Optional: restrict results to evidence linked to events at this status.',
+    entries: {
+      type: 'array', minItems: 1, maxItems: 20,
+      items: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          sourceRecordId: { type: 'string', minLength: 1, maxLength: 64 },
+          category: { type: 'string', enum: ['work-from-home', 'other-work-related'] },
+          description: { type: 'string', minLength: 1, maxLength: 120 },
+          periodStart: date, periodEnd: date, quantity: positive,
+          unit: { type: 'string', enum: ['hours', 'AUD'] },
+          claimAmountMinor: positiveMinor,
+          currency: { type: 'string', enum: ['AUD'] },
+          sourceLabel: { type: 'string', minLength: 1, maxLength: 120 },
+        },
+        required: ['sourceRecordId', 'category', 'description', 'periodStart', 'periodEnd', 'quantity', 'unit', 'currency', 'sourceLabel'],
+      },
     },
   },
-  additionalProperties: false,
+  required: ['entries'], additionalProperties: false,
 } as const;
 
-export const reconcileInvestmentEvidenceSchema = {
+export const recordDisposalsSchema = {
   type: 'object',
   properties: {
-    eventIds: {
-      type: 'array',
-      items: { type: 'string', minLength: 1 },
-      minItems: 1,
-      uniqueItems: true,
-      description: 'Stable investment event IDs to reconcile with their linked evidence.',
+    entries: {
+      type: 'array', minItems: 1, maxItems: 20,
+      items: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          sourceRecordId: { type: 'string', minLength: 1, maxLength: 64 },
+          assetType: { type: 'string', enum: ['foreign-share', 'crypto'] },
+          symbol: { type: 'string', pattern: '^[A-Z0-9.-]{1,12}$' },
+          quantity: positive,
+          acquisitionDate: date,
+          acquisitionUnitPriceMinor: positiveMinor,
+          acquisitionCurrency: currency,
+          disposalDate: date,
+          proceedsMinor: positiveMinor,
+          currency,
+          brokerageMinor: positiveMinor,
+          feeMinor: positiveMinor,
+          sourceLabel: { type: 'string', minLength: 1, maxLength: 120 },
+        },
+        required: ['sourceRecordId', 'assetType', 'symbol', 'quantity', 'disposalDate', 'proceedsMinor', 'currency', 'sourceLabel'],
+      },
     },
   },
-  required: ['eventIds'],
-  additionalProperties: false,
+  required: ['entries'], additionalProperties: false,
 } as const;
 
 export const recordAcquisitionDetailsSchema = {
-  type: 'object',
+  type: 'object', additionalProperties: false,
   properties: {
-    eventId: {
-      type: 'string',
-      minLength: 1,
-      description: 'Stable ID of the investment event to update.',
-    },
-    acquisitionDate: {
-      type: 'string',
-      pattern: ISO_DATE_PATTERN,
-      description: 'Acquisition date as YYYY-MM-DD, strictly before the disposal date.',
-    },
-    unitPrice: {
-      type: 'number',
-      exclusiveMinimum: 0,
-      description: 'Per-unit acquisition price. Must be a positive number.',
-    },
-    currency: {
-      type: 'string',
-      enum: [...CURRENCY_ENUM],
-      description: 'Currency of the acquisition price.',
-    },
+    eventId: { type: 'string', minLength: 1, maxLength: 80 },
+    acquisitionDate: date,
+    unitPrice: positive,
+    currency,
   },
   required: ['eventId', 'acquisitionDate', 'unitPrice', 'currency'],
-  additionalProperties: false,
 } as const;
 
 export const validateReviewPackSchema = emptyInputSchema;
-
 export const generateReviewPackSchema = emptyInputSchema;

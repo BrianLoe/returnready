@@ -13,23 +13,14 @@ import type {
   Currency,
   DeductionInput,
   DisposalInput,
-  EventStatus,
-  FixtureSectionStatus,
-  InvestmentsStatus,
-  NormalizedEvidenceSummary,
   Result,
   ReturnState,
   ValidationIssue,
 } from '../domain/model';
 import { recordAcquisitionDetails as domainRecordAcquisitionDetails } from '../domain/acquisition';
-import { normalizeEvidence } from '../domain/normalizeEvidence';
-import { deriveInvestmentsStatusFromIssues, reconcileEvents } from '../domain/reconcile';
 import type { ReviewPack } from '../domain/reviewPack';
 import { generateReviewPack as domainGenerateReviewPack } from '../domain/reviewPack';
-import {
-  validateDraftReviewPack as domainValidateDraftReviewPack,
-  validateReviewPack as domainValidateReviewPack,
-} from '../domain/validation';
+import { validateDraftReviewPack as domainValidateDraftReviewPack } from '../domain/validation';
 import { recordDeductions as domainRecordDeductions } from '../domain/recordDeductions';
 import { recordDisposals as domainRecordDisposals } from '../domain/recordDisposals';
 import { createDemoReturnState } from '../fixtures/demoReturn';
@@ -41,20 +32,6 @@ import { createDemoReturnState } from '../fixtures/demoReturn';
 // from what the wrapped Task 3 functions already return.
 
 /** Read-only whole-return readiness summary, derived fresh from event facts. */
-export interface ReturnReadiness {
-  incomeStatus: FixtureSectionStatus;
-  deductionsStatus: FixtureSectionStatus;
-  investmentsStatus: InvestmentsStatus;
-  blockerCount: number;
-  warningCount: number;
-  canGenerate: boolean;
-}
-
-export interface ReconcileSummary {
-  reconciledEventIds: readonly string[];
-  issues: readonly ValidationIssue[];
-}
-
 export interface ReturnDraftSummary {
   incomeSummary: ReturnState['incomeSummary'];
   deductionCount: number;
@@ -99,9 +76,6 @@ export interface ReturnReadyController {
   getReturnDraft(): ReturnDraftSummary;
   recordDeductions(inputs: readonly DeductionInput[], actor: Actor): Result<RecordBatchSummary>;
   recordDisposals(inputs: readonly DisposalInput[], actor: Actor): Result<RecordBatchSummary>;
-  getReturnReadiness(): ReturnReadiness;
-  listInvestmentEvidence(filter?: EventStatus): readonly NormalizedEvidenceSummary[];
-  reconcileInvestmentEvidence(eventIds: readonly string[], actor: Actor): Result<ReconcileSummary>;
   recordAcquisitionDetails(input: AcquisitionInput, actor: Actor): Result<AcquisitionSummary>;
   validateReviewPack(actor: Actor): Result<ValidationSummary>;
   generateReviewPack(actor: Actor): Result<ReviewPackSummary>;
@@ -208,74 +182,6 @@ export function createReturnReadyController(options?: { now?: () => string }): R
       };
     },
 
-    getReturnReadiness() {
-      // Read-only: re-derives issues straight from the current event facts
-      // via the domain's own `validateReviewPack`, without touching `state`
-      // or logging activity. This is what lets the opening screen already
-      // show "Action required" with 1 blocker + 1 warning before anything
-      // has been reconciled.
-      const { issues, canGenerate } =
-        state.deductions.length > 0 || state.disposals.length > 0 || state.events.length === 0
-          ? domainValidateDraftReviewPack(state)
-          : domainValidateReviewPack(state);
-      const blockerCount = issues.filter((issue) => issue.severity === 'blocker').length;
-      const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
-
-      // Roll the fresh issues up to one section-level label via the shared
-      // domain rule (`deriveInvestmentsStatusFromIssues`), which derives each
-      // per-event status from these same fresh issues and then applies the
-      // rollup. `buildPack` uses the identical helper, so the readiness
-      // summary and the generated pack never diverge.
-      const investmentsStatus = deriveInvestmentsStatusFromIssues(state.events, issues);
-
-      return {
-        incomeStatus: state.incomeStatus,
-        deductionsStatus: state.deductionsStatus,
-        investmentsStatus,
-        blockerCount,
-        warningCount,
-        canGenerate,
-      };
-    },
-
-    listInvestmentEvidence(filter) {
-      // Every evidence record is returned through the same allow-listed
-      // `normalizeEvidence` boundary (matching `reviewPack.ts`'s own
-      // unfiltered `evidenceIndex`); `filter` narrows to records linked to
-      // at least one investment event currently at that status. Records
-      // that back the previously-reviewed Income/Deductions sections are
-      // never linked to an investment event, so a status filter excludes
-      // them naturally without a separate source-type allow-list here.
-      return state.evidence
-        .filter((item) => {
-          if (filter === undefined) return true;
-          return item.linkedEventIds.some((eventId) => {
-            const event = state.events.find((candidate) => candidate.id === eventId);
-            return event?.status === filter;
-          });
-        })
-        .map(normalizeEvidence);
-    },
-
-    reconcileInvestmentEvidence(eventIds, actor) {
-      const result = reconcileEvents(state, eventIds, actor, now);
-      if (!result.ok) return result;
-
-      if (result.changed) {
-        state = result.value.state;
-        notify();
-      }
-
-      return {
-        ok: true,
-        changed: result.changed,
-        value: {
-          reconciledEventIds: result.value.reconciledEventIds,
-          issues: result.value.issues,
-        },
-      };
-    },
-
     recordAcquisitionDetails(input, actor) {
       const result = domainRecordAcquisitionDetails(state, input, actor, now);
       if (!result.ok) return result;
@@ -300,10 +206,7 @@ export function createReturnReadyController(options?: { now?: () => string }): R
       // the validation modal so the user sees why generation is (or isn't)
       // available. This never touches domain `state`, so `changed` is
       // always false here regardless of the modal's own open/closed change.
-      const { issues, canGenerate } =
-        state.deductions.length > 0 || state.disposals.length > 0 || state.events.length === 0
-          ? domainValidateDraftReviewPack(state)
-          : domainValidateReviewPack(state);
+      const { issues, canGenerate } = domainValidateDraftReviewPack(state);
       openValidationModal();
 
       return {

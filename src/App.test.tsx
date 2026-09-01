@@ -58,13 +58,23 @@ describe('App + WebMCP wiring', () => {
     const live = () => registrations.filter((r) => r.options?.signal?.aborted !== true);
     await waitFor(() => expect(live().length).toBe(6));
 
-    const reconcile = live().find((r) => r.tool.name === 'reconcile_investment_evidence');
-    if (!reconcile) throw new Error('reconcile_investment_evidence was not registered');
+    const recordDeductions = live().find((r) => r.tool.name === 'record_deductions');
+    if (!recordDeductions) throw new Error('record_deductions was not registered');
 
     expect(screen.getByText('No activity yet.')).toBeVisible();
 
-    const raw = await reconcile.tool.execute(
-      { eventIds: ['evt-msft', 'evt-aapl', 'evt-btc'] },
+    const raw = await recordDeductions.tool.execute(
+      { entries: [{
+        sourceRecordId: 'wfh-app-test-01',
+        category: 'work-from-home',
+        description: 'WFH hours populated by Codex',
+        periodStart: '2025-07-01',
+        periodEnd: '2026-06-30',
+        quantity: 40,
+        unit: 'hours',
+        currency: 'AUD',
+        sourceLabel: 'wfh-hours-fy2025-26.csv',
+      }] },
       { signal: new AbortController().signal },
     );
     if (typeof raw !== 'string') throw new Error('expected a string tool result');
@@ -80,6 +90,7 @@ describe('App + WebMCP wiring', () => {
     // `useSyncExternalStore`.
     await waitFor(() => {
       expect(screen.getAllByText('Agent').length).toBeGreaterThan(0);
+      expect(screen.getByRole('article', { name: 'WFH hours populated by Codex' })).toBeVisible();
     });
   });
 });

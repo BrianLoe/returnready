@@ -1,391 +1,154 @@
-// Registers the six approved ReturnReady WebMCP tools against the same
-// `ReturnReadyController` the manual UI uses. This module never
-// manipulates the DOM and never reimplements a domain/reconciliation rule
-// -- every state-changing tool calls straight through to the controller,
-// which delegates to the pure domain functions from `src/domain/*`. The
-// only work done here is: (1) defensive, field-by-field re-validation of
-// tool arguments (schemas alone are not a trust boundary), (2) projecting
-// two tools' controller results into concise shapes that fit the output
-// budget (see `serializeToolResult` below), and (3) registration lifecycle
-// (fail safely when WebMCP is unavailable; clean up via AbortController).
-
 /// <reference types="webmcp-types" />
 
-import type {
-  AssetClass,
-  EventStatus,
-  EvidenceSourceType,
-  EvidenceStatus,
-  Result,
-  ValidationIssue,
-} from '../domain/model';
-import type {
-  AcquisitionSummary,
-  ReconcileSummary,
-  ReturnReadiness,
-  ReturnReadyController,
-  ValidationSummary,
-} from '../application/returnReadyController';
+import type { Currency, DeductionInput, DisposalInput, Result } from '../domain/model';
+import type { AcquisitionInput, ReturnReadyController } from '../application/returnReadyController';
 import {
-  EVENT_STATUS_VALUES,
   generateReviewPackSchema,
-  getReturnReadinessSchema,
-  listInvestmentEvidenceSchema,
-  reconcileInvestmentEvidenceSchema,
+  getReturnDraftSchema,
   recordAcquisitionDetailsSchema,
+  recordDeductionsSchema,
+  recordDisposalsSchema,
   validateReviewPackSchema,
 } from './schemas';
 
-// --- Output budget enforcement ----------------------------------------------
-//
-// AGENTS.md and the design spec mandate every individual tool output stay
-// within 1,500 characters. Two tools' literal controller results can
-// exceed that in ordinary (non-edge-case) use with the demo fixture's full
-// evidence set: an unfiltered `list_investment_evidence` and a generated
-// `generate_review_pack` (whose controller result embeds the full
-// `ReviewPack`, including per-evidence and per-event tables). Rather than
-// truncate or slice JSON -- which could silently drop a blocker or warning
-// -- both of those two tools' `value` payloads are projected down to the
-// concise fields the design spec's "WebMCP Tool Contract" section already
-// names for them. `serializeToolResult` is the last-resort safety net for
-// any tool: if a serialized result would still exceed the budget, it
-// returns a small structured `output_too_large` error instead.
+const MAX_OUTPUT = 1500;
+const DEDUCTION_KEYS = ['sourceRecordId', 'category', 'description', 'periodStart', 'periodEnd', 'quantity', 'unit', 'claimAmountMinor', 'currency', 'sourceLabel'] as const;
+const DISPOSAL_KEYS = ['sourceRecordId', 'assetType', 'symbol', 'quantity', 'acquisitionDate', 'acquisitionUnitPriceMinor', 'acquisitionCurrency', 'disposalDate', 'proceedsMinor', 'currency', 'brokerageMinor', 'feeMinor', 'sourceLabel'] as const;
 
-const MAX_TOOL_OUTPUT_LENGTH = 1500;
+type ParseResult<T> = { ok: true; value: T } | { ok: false; message: string };
+type OutputTooLarge = { ok: false; changed: false; error: { code: 'output_too_large'; message: string } };
 
-interface OutputTooLargeError {
-  ok: false;
-  changed: false;
-  error: { code: 'output_too_large'; message: string };
+export function serializeToolResult<T>(result: Result<T> | OutputTooLarge): string {
+  const serialized = JSON.stringify(result);
+  if (serialized.length <= MAX_OUTPUT) return serialized;
+  return JSON.stringify({ ok: false, changed: false, error: { code: 'output_too_large', message: 'Result exceeded the tool output limit.' } });
 }
 
-type ToolResult<T> = Result<T> | OutputTooLargeError;
-
-export function serializeToolResult<T>(result: ToolResult<T>): string {
-  const json = JSON.stringify(result);
-  if (json.length <= MAX_TOOL_OUTPUT_LENGTH) return json;
-
-  const fallback: OutputTooLargeError = {
-    ok: false,
-    changed: false,
-    error: {
-      code: 'output_too_large',
-      message: 'Result exceeded the tool output size limit. Narrow the request and try again.',
-    },
-  };
-  return JSON.stringify(fallback);
-}
-
-function invalidInputResult<T>(message: string): Result<T> {
+function invalid<T>(message: string): Result<T> {
   return { ok: false, changed: false, error: { code: 'invalid_input', message } };
 }
 
-// --- Projected output shapes -------------------------------------------------
-
-interface EvidenceListItem {
-  id: string;
-  sourceType: EvidenceSourceType;
-  displayName: string;
-  synthetic: true;
-  linkedEventIds: readonly string[];
-  status: EvidenceStatus;
-}
-
-interface EventListItem {
-  id: string;
-  assetClass: AssetClass;
-  symbol: string;
-  synthetic: true;
-  status: EventStatus;
-}
-
-interface ListInvestmentEvidenceValue {
-  evidence: readonly EvidenceListItem[];
-  events: readonly EventListItem[];
-}
-
-interface GenerateReviewPackValue {
-  packId: string;
-  remainingWarnings: readonly ValidationIssue[];
-  message: string;
-}
-
-// --- Defensive argument parsing ----------------------------------------------
-//
-// Re-validates every field independently of the JSON Schema declared on
-// each tool: a schema is advisory to the host, not a guaranteed trust
-// boundary, so every handler below re-checks types, enums, formats, and
-// numeric constraints itself before ever calling the controller. Unknown
-// fields, wrong types, and out-of-range values are all rejected here with
-// a structured `invalid_input` error and no controller call is made, so
-// state is always left unchanged.
-
-type ParseResult<T> = { ok: true; value: T } | { ok: false; message: string };
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function rejectUnknownKeys(obj: Record<string, unknown>, allowed: readonly string[]): string | null {
-  const extra = Object.keys(obj).filter((key) => !allowed.includes(key));
-  return extra.length > 0 ? `Unexpected field(s): ${extra.join(', ')}` : null;
+function unknownKey(value: Record<string, unknown>, allowed: readonly string[]): string | null {
+  return Object.keys(value).find((key) => !allowed.includes(key)) ?? null;
 }
 
-function parseEmptyArgs(raw: unknown): ParseResult<void> {
+function emptyArgs(raw: unknown): ParseResult<void> {
   if (raw === undefined || raw === null) return { ok: true, value: undefined };
-  if (!isPlainObject(raw)) return { ok: false, message: 'Arguments must be an object.' };
-  const extra = rejectUnknownKeys(raw, []);
-  if (extra) return { ok: false, message: extra };
-  return { ok: true, value: undefined };
+  if (!object(raw)) return { ok: false, message: 'Arguments must be an object.' };
+  const key = unknownKey(raw, []);
+  return key ? { ok: false, message: `Unexpected field: ${key}` } : { ok: true, value: undefined };
 }
 
-function parseListArgs(raw: unknown): ParseResult<EventStatus | undefined> {
-  if (raw === undefined || raw === null) return { ok: true, value: undefined };
-  if (!isPlainObject(raw)) return { ok: false, message: 'Arguments must be an object.' };
-  const extra = rejectUnknownKeys(raw, ['filter']);
-  if (extra) return { ok: false, message: extra };
-
-  const { filter } = raw;
-  if (filter === undefined) return { ok: true, value: undefined };
-  if (typeof filter !== 'string' || !(EVENT_STATUS_VALUES as readonly string[]).includes(filter)) {
-    return { ok: false, message: 'filter must be one of the known event statuses.' };
-  }
-  return { ok: true, value: filter as EventStatus };
+function text(value: unknown, name: string, max: number): ParseResult<string> {
+  if (typeof value !== 'string' || value.length < 1 || value.length > max) return { ok: false, message: `${name} must be 1-${max} characters.` };
+  return { ok: true, value };
 }
 
-function parseReconcileArgs(raw: unknown): ParseResult<string[]> {
-  if (!isPlainObject(raw)) return { ok: false, message: 'Arguments must be an object.' };
-  const extra = rejectUnknownKeys(raw, ['eventIds']);
-  if (extra) return { ok: false, message: extra };
-
-  const { eventIds } = raw;
-  if (!Array.isArray(eventIds) || eventIds.length === 0) {
-    return { ok: false, message: 'eventIds must be a non-empty array.' };
+function positive(value: unknown, name: string, integer = false): ParseResult<number> {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || (integer && !Number.isSafeInteger(value))) {
+    return { ok: false, message: `${name} must be a positive ${integer ? 'safe integer' : 'finite number'}.` };
   }
-  if (!eventIds.every((id): id is string => typeof id === 'string' && id.length > 0)) {
-    return { ok: false, message: 'eventIds must contain only non-empty strings.' };
-  }
-  if (new Set(eventIds).size !== eventIds.length) {
-    return { ok: false, message: 'eventIds must not contain duplicate IDs.' };
-  }
-  return { ok: true, value: eventIds as string[] };
+  return { ok: true, value };
 }
 
-function isValidIsoDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+function date(value: unknown, name: string): ParseResult<string> {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return { ok: false, message: `${name} must be YYYY-MM-DD.` };
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.toISOString().slice(0, 10) === value;
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) return { ok: false, message: `${name} must be a real date.` };
+  return { ok: true, value };
 }
 
-interface AcquisitionArgs {
-  eventId: string;
-  acquisitionDate: string;
-  unitPrice: number;
-  currency: 'AUD' | 'USD';
+function currency(value: unknown, name: string): ParseResult<Currency> {
+  return value === 'AUD' || value === 'USD' ? { ok: true, value } : { ok: false, message: `${name} must be AUD or USD.` };
 }
 
-function parseAcquisitionArgs(raw: unknown): ParseResult<AcquisitionArgs> {
-  if (!isPlainObject(raw)) return { ok: false, message: 'Arguments must be an object.' };
-  const extra = rejectUnknownKeys(raw, ['eventId', 'acquisitionDate', 'unitPrice', 'currency']);
-  if (extra) return { ok: false, message: extra };
-
-  const { eventId, acquisitionDate, unitPrice, currency } = raw;
-
-  if (typeof eventId !== 'string' || eventId.length === 0) {
-    return { ok: false, message: 'eventId must be a non-empty string.' };
-  }
-  if (typeof acquisitionDate !== 'string' || !isValidIsoDate(acquisitionDate)) {
-    return { ok: false, message: 'acquisitionDate must be a valid YYYY-MM-DD date.' };
-  }
-  if (typeof unitPrice !== 'number' || !Number.isFinite(unitPrice) || unitPrice <= 0) {
-    return { ok: false, message: 'unitPrice must be a positive finite number.' };
-  }
-  if (currency !== 'AUD' && currency !== 'USD') {
-    return { ok: false, message: 'currency must be AUD or USD.' };
-  }
-
-  return { ok: true, value: { eventId, acquisitionDate, unitPrice, currency } };
+function parseDeduction(value: unknown): ParseResult<DeductionInput> {
+  if (!object(value)) return { ok: false, message: 'Each deduction must be an object.' };
+  const extra = unknownKey(value, DEDUCTION_KEYS);
+  if (extra) return { ok: false, message: `Unexpected deduction field: ${extra}` };
+  const id = text(value.sourceRecordId, 'sourceRecordId', 64); if (!id.ok) return id;
+  const description = text(value.description, 'description', 120); if (!description.ok) return description;
+  const start = date(value.periodStart, 'periodStart'); if (!start.ok) return start;
+  const end = date(value.periodEnd, 'periodEnd'); if (!end.ok) return end;
+  const quantity = positive(value.quantity, 'quantity'); if (!quantity.ok) return quantity;
+  const source = text(value.sourceLabel, 'sourceLabel', 120); if (!source.ok) return source;
+  if (value.category !== 'work-from-home' && value.category !== 'other-work-related') return { ok: false, message: 'category is unsupported.' };
+  if (value.unit !== 'hours' && value.unit !== 'AUD') return { ok: false, message: 'unit is unsupported.' };
+  if (value.currency !== 'AUD') return { ok: false, message: 'currency must be AUD.' };
+  let claimAmountMinor: number | undefined;
+  if (value.claimAmountMinor !== undefined) { const amount = positive(value.claimAmountMinor, 'claimAmountMinor', true); if (!amount.ok) return amount; claimAmountMinor = amount.value; }
+  return { ok: true, value: { sourceRecordId: id.value, category: value.category, description: description.value, periodStart: start.value, periodEnd: end.value, quantity: quantity.value, unit: value.unit, ...(claimAmountMinor === undefined ? {} : { claimAmountMinor }), currency: 'AUD', sourceLabel: source.value } };
 }
 
-// --- Tool definitions ---------------------------------------------------------
+function parseDisposal(value: unknown): ParseResult<DisposalInput> {
+  if (!object(value)) return { ok: false, message: 'Each disposal must be an object.' };
+  const extra = unknownKey(value, DISPOSAL_KEYS); if (extra) return { ok: false, message: `Unexpected disposal field: ${extra}` };
+  const id = text(value.sourceRecordId, 'sourceRecordId', 64); if (!id.ok) return id;
+  const symbol = text(value.symbol, 'symbol', 12); if (!symbol.ok || !/^[A-Z0-9.-]{1,12}$/.test(symbol.value)) return { ok: false, message: 'symbol must be uppercase and 1-12 characters.' };
+  const quantity = positive(value.quantity, 'quantity'); if (!quantity.ok) return quantity;
+  const disposalDate = date(value.disposalDate, 'disposalDate'); if (!disposalDate.ok) return disposalDate;
+  const proceeds = positive(value.proceedsMinor, 'proceedsMinor', true); if (!proceeds.ok) return proceeds;
+  const disposalCurrency = currency(value.currency, 'currency'); if (!disposalCurrency.ok) return disposalCurrency;
+  const source = text(value.sourceLabel, 'sourceLabel', 120); if (!source.ok) return source;
+  if (value.assetType !== 'foreign-share' && value.assetType !== 'crypto') return { ok: false, message: 'assetType is unsupported.' };
+  const optionalMinor = (key: 'brokerageMinor' | 'feeMinor'): ParseResult<number | undefined> => value[key] === undefined ? { ok: true, value: undefined } : positive(value[key], key, true);
+  const brokerage = optionalMinor('brokerageMinor'); if (!brokerage.ok) return brokerage;
+  const fee = optionalMinor('feeMinor'); if (!fee.ok) return fee;
+  const acquisitionValues = [value.acquisitionDate, value.acquisitionUnitPriceMinor, value.acquisitionCurrency];
+  const supplied = acquisitionValues.filter((item) => item !== undefined).length;
+  if (supplied !== 0 && supplied !== 3) return { ok: false, message: 'Acquisition fields must be supplied together.' };
+  let acquisition: Pick<DisposalInput, 'acquisitionDate' | 'acquisitionUnitPriceMinor' | 'acquisitionCurrency'> = {};
+  if (supplied === 3) {
+    const acquisitionDate = date(value.acquisitionDate, 'acquisitionDate'); if (!acquisitionDate.ok) return acquisitionDate;
+    const price = positive(value.acquisitionUnitPriceMinor, 'acquisitionUnitPriceMinor', true); if (!price.ok) return price;
+    const acquisitionCurrency = currency(value.acquisitionCurrency, 'acquisitionCurrency'); if (!acquisitionCurrency.ok) return acquisitionCurrency;
+    acquisition = { acquisitionDate: acquisitionDate.value, acquisitionUnitPriceMinor: price.value, acquisitionCurrency: acquisitionCurrency.value };
+  }
+  return { ok: true, value: { sourceRecordId: id.value, assetType: value.assetType, symbol: symbol.value, quantity: quantity.value, ...acquisition, disposalDate: disposalDate.value, proceedsMinor: proceeds.value, currency: disposalCurrency.value, ...(brokerage.value === undefined ? {} : { brokerageMinor: brokerage.value }), ...(fee.value === undefined ? {} : { feeMinor: fee.value }), sourceLabel: source.value } };
+}
 
-function buildTools(controller: ReturnReadyController): WebMCP.ModelContextTool[] {
+function parseBatch<T>(raw: unknown, parser: (value: unknown) => ParseResult<T>): ParseResult<T[]> {
+  if (!object(raw)) return { ok: false, message: 'Arguments must be an object.' };
+  const extra = unknownKey(raw, ['entries']); if (extra) return { ok: false, message: `Unexpected field: ${extra}` };
+  if (!Array.isArray(raw.entries) || raw.entries.length < 1 || raw.entries.length > 20) return { ok: false, message: 'entries must contain 1-20 items.' };
+  const parsed: T[] = [];
+  for (const item of raw.entries) { const result = parser(item); if (!result.ok) return result; parsed.push(result.value); }
+  return { ok: true, value: parsed };
+}
+
+function parseAcquisition(raw: unknown): ParseResult<AcquisitionInput> {
+  if (!object(raw)) return { ok: false, message: 'Arguments must be an object.' };
+  const extra = unknownKey(raw, ['eventId', 'acquisitionDate', 'unitPrice', 'currency']); if (extra) return { ok: false, message: `Unexpected field: ${extra}` };
+  const id = text(raw.eventId, 'eventId', 80); if (!id.ok) return id;
+  const acquisitionDate = date(raw.acquisitionDate, 'acquisitionDate'); if (!acquisitionDate.ok) return acquisitionDate;
+  const price = positive(raw.unitPrice, 'unitPrice'); if (!price.ok) return price;
+  const acquisitionCurrency = currency(raw.currency, 'currency'); if (!acquisitionCurrency.ok) return acquisitionCurrency;
+  return { ok: true, value: { eventId: id.value, acquisitionDate: acquisitionDate.value, unitPrice: price.value, currency: acquisitionCurrency.value } };
+}
+
+function tools(controller: ReturnReadyController): WebMCP.ModelContextTool[] {
   return [
-    {
-      name: 'get_return_readiness',
-      title: 'Get return readiness',
-      description:
-        'Reads whole-return readiness: section statuses, blocker/warning counts, and whether a review pack can be generated. Read-only. Does not lodge returns or calculate tax.',
-      inputSchema: getReturnReadinessSchema,
-      annotations: { readOnlyHint: true, untrustedContentHint: false },
-      async execute(rawArgs) {
-        const parsed = parseEmptyArgs(rawArgs);
-        if (!parsed.ok) {
-          return serializeToolResult(invalidInputResult<ReturnReadiness>(parsed.message));
-        }
-        const value = controller.getReturnReadiness();
-        return serializeToolResult<ReturnReadiness>({ ok: true, changed: false, value });
-      },
-    },
-    {
-      name: 'list_investment_evidence',
-      title: 'List investment evidence',
-      description:
-        'Reads normalized investment evidence and the investment events they may link to, with an optional status filter. Returns stable IDs and normalized fields only, never raw source text.',
-      inputSchema: listInvestmentEvidenceSchema,
-      annotations: { readOnlyHint: true, untrustedContentHint: true },
-      async execute(rawArgs) {
-        const parsed = parseListArgs(rawArgs);
-        if (!parsed.ok) {
-          return serializeToolResult(invalidInputResult<ListInvestmentEvidenceValue>(parsed.message));
-        }
-        const filter = parsed.value;
-        const evidence = controller.listInvestmentEvidence(filter);
-        const events = controller
-          .getState()
-          .events.filter((event) => filter === undefined || event.status === filter);
-
-        const value: ListInvestmentEvidenceValue = {
-          evidence: evidence.map((item) => ({
-            id: item.id,
-            sourceType: item.sourceType,
-            displayName: item.displayName,
-            synthetic: true,
-            linkedEventIds: item.linkedEventIds,
-            status: item.status,
-          })),
-          events: events.map((event) => ({
-            id: event.id,
-            assetClass: event.assetClass,
-            symbol: event.symbol,
-            synthetic: true,
-            status: event.status,
-          })),
-        };
-        return serializeToolResult<ListInvestmentEvidenceValue>({ ok: true, changed: false, value });
-      },
-    },
-    {
-      name: 'reconcile_investment_evidence',
-      title: 'Reconcile investment evidence',
-      description:
-        'Links named investment events to matching evidence and recomputes their blocking/warning issues. Idempotent: repeated calls make no further change once already reconciled.',
-      inputSchema: reconcileInvestmentEvidenceSchema,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      async execute(rawArgs) {
-        const parsed = parseReconcileArgs(rawArgs);
-        if (!parsed.ok) {
-          return serializeToolResult(invalidInputResult<ReconcileSummary>(parsed.message));
-        }
-        const result = controller.reconcileInvestmentEvidence(parsed.value, 'agent');
-        return serializeToolResult<ReconcileSummary>(result);
-      },
-    },
-    {
-      name: 'record_acquisition_details',
-      title: 'Record acquisition details',
-      description:
-        'Records a user-attested acquisition date, unit price, and currency for one investment event and links matching FX evidence. This is a user attestation, not documentary evidence.',
-      inputSchema: recordAcquisitionDetailsSchema,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      async execute(rawArgs) {
-        const parsed = parseAcquisitionArgs(rawArgs);
-        if (!parsed.ok) {
-          return serializeToolResult(invalidInputResult<AcquisitionSummary>(parsed.message));
-        }
-        const result = controller.recordAcquisitionDetails(parsed.value, 'agent');
-        return serializeToolResult<AcquisitionSummary>(result);
-      },
-    },
-    {
-      name: 'validate_review_pack',
-      title: 'Validate review pack',
-      description:
-        'Re-derives current blocking/warning issues across all investment events and reports whether a review pack can be generated yet. Does not lodge returns or calculate tax.',
-      inputSchema: validateReviewPackSchema,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      async execute(rawArgs) {
-        const parsed = parseEmptyArgs(rawArgs);
-        if (!parsed.ok) {
-          return serializeToolResult(invalidInputResult<ValidationSummary>(parsed.message));
-        }
-        const result = controller.validateReviewPack('agent');
-        return serializeToolResult<ValidationSummary>(result);
-      },
-    },
-    {
-      name: 'generate_review_pack',
-      title: 'Generate review pack',
-      description:
-        'Generates the accountant review pack once no blocking issues remain. Returns the pack ID, remaining warnings, and a completion message. Does not lodge returns or calculate tax.',
-      inputSchema: generateReviewPackSchema,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      async execute(rawArgs) {
-        const parsed = parseEmptyArgs(rawArgs);
-        if (!parsed.ok) {
-          return serializeToolResult(invalidInputResult<GenerateReviewPackValue>(parsed.message));
-        }
-        const result = controller.generateReviewPack('agent');
-        if (!result.ok) {
-          return serializeToolResult<GenerateReviewPackValue>(result);
-        }
-
-        const value: GenerateReviewPackValue = {
-          packId: result.value.pack.id,
-          remainingWarnings: result.value.pack.unresolvedWarnings,
-          message: 'Review pack generated for accountant review.',
-        };
-        return serializeToolResult<GenerateReviewPackValue>({
-          ok: true,
-          changed: result.changed,
-          value,
-        });
-      },
-    },
+    { name: 'get_return_draft', title: 'Get return draft', description: 'Reads the current sparse return draft, issue counts, and whether the review pack can be generated. Does not calculate tax or lodge a return.', inputSchema: getReturnDraftSchema, annotations: { readOnlyHint: true, untrustedContentHint: false }, async execute(raw) { const args = emptyArgs(raw); return serializeToolResult(args.ok ? { ok: true, changed: false, value: controller.getReturnDraft() } : invalid(args.message)); } },
+    { name: 'record_deductions', title: 'Record deductions', description: 'Records structured deduction evidence interpreted by Codex from synthetic attachments. Accepts facts and a display-safe source label, never file contents or paths.', inputSchema: recordDeductionsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseBatch(raw, parseDeduction); return serializeToolResult(args.ok ? controller.recordDeductions(args.value, 'agent') : invalid(args.message)); } },
+    { name: 'record_disposals', title: 'Record disposals', description: 'Records structured foreign-share or crypto disposal facts interpreted by Codex from synthetic attachments. Does not calculate gains or tax.', inputSchema: recordDisposalsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseBatch(raw, parseDisposal); return serializeToolResult(args.ok ? controller.recordDisposals(args.value, 'agent') : invalid(args.message)); } },
+    { name: 'record_acquisition_details', title: 'Record acquisition details', description: 'Records user-attested historical acquisition details for one disposal that is missing them. Documentary facts cannot be overwritten.', inputSchema: recordAcquisitionDetailsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseAcquisition(raw); return serializeToolResult(args.ok ? controller.recordAcquisitionDetails(args.value, 'agent') : invalid(args.message)); } },
+    { name: 'validate_review_pack', title: 'Validate review pack', description: 'Derives blockers and warnings from the current draft and reports whether a review pack can be generated. Does not calculate tax.', inputSchema: validateReviewPackSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = emptyArgs(raw); return serializeToolResult(args.ok ? controller.validateReviewPack('agent') : invalid(args.message)); } },
+    { name: 'generate_review_pack', title: 'Generate review pack', description: 'Generates an evidence review pack when no blockers remain. Warnings remain visible. Does not lodge a return or calculate tax.', inputSchema: generateReviewPackSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = emptyArgs(raw); if (!args.ok) return serializeToolResult(invalid(args.message)); const result = controller.generateReviewPack('agent'); if (!result.ok) return serializeToolResult(result); return serializeToolResult({ ok: true, changed: result.changed, value: { packId: result.value.pack.id, warnings: result.value.pack.unresolvedWarnings.map((issue) => ({ code: issue.code, recordId: issue.eventId })) } }); } },
   ];
 }
 
-// --- Registration lifecycle ---------------------------------------------------
+export interface RegisterToolsResult { available: boolean; controller: AbortController }
 
-export interface RegisterToolsResult {
-  /** False when `document.modelContext` is unavailable; the manual UI still works either way. */
-  available: boolean;
-  /** Abort to unregister all six tools (call on unmount / hot-reload). */
-  controller: AbortController;
-}
-
-/**
- * Registers the six ReturnReady WebMCP tools against `document.modelContext`,
- * if present. Fails safe: when WebMCP is unavailable, or registration
- * throws or rejects, this never throws back to the caller -- it returns
- * `available: false` (or `available: true` with an aborted-in-place
- * registration attempt already swallowed) and the manual UI keeps working
- * either way. Does not set `exposedTo` (no cross-origin exposure).
- */
 export function registerReturnReadyTools(controller: ReturnReadyController): RegisterToolsResult {
   const abortController = new AbortController();
   const modelContext = typeof document === 'undefined' ? undefined : document.modelContext;
-
-  if (!modelContext || typeof modelContext.registerTool !== 'function') {
-    return { available: false, controller: abortController };
+  if (!modelContext || typeof modelContext.registerTool !== 'function') return { available: false, controller: abortController };
+  for (const tool of tools(controller)) {
+    try { modelContext.registerTool(tool, { signal: abortController.signal }).catch(() => undefined); } catch { /* Keep the manual app available and attempt every registration. */ }
   }
-
-  const { signal } = abortController;
-  for (const tool of buildTools(controller)) {
-    try {
-      modelContext.registerTool(tool, { signal }).catch(() => {
-        // A single tool's async registration failing must not crash the
-        // app or block the others; the manual UI remains fully functional
-        // regardless of WebMCP registration outcomes.
-      });
-    } catch {
-      // Synchronous failure from the host on this one tool (e.g.
-      // `registerTool` throws immediately) must not prevent the remaining
-      // tools from attempting registration, and must not crash the app;
-      // the manual UI stays functional either way.
-    }
-  }
-
   return { available: true, controller: abortController };
 }

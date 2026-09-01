@@ -16,17 +16,14 @@ import type {
   ReturnState,
   ValidationIssue,
 } from './model';
-import {
-  deriveInvestmentsStatusFromIssues,
-  deriveStatusFromIssues,
-} from './reconcile';
-import { validateReviewPack } from './validation';
+import { deriveStatusFromIssues } from './reconcile';
 import { validateDraftReviewPack } from './validation';
+import { deriveDraftInvestmentsStatus } from './draftValidation';
 
 const REVIEW_PACK_ID = 'review-pack-2026';
 
 const ASSUMPTIONS_AND_LIMITATIONS: readonly string[] = [
-  'All figures shown are synthetic demo data for prototype evaluation only.',
+  'Example evidence is provided for prototype evaluation only.',
   'This pack does not calculate capital gain, capital loss, tax liability, CGT discount eligibility, or refund amounts.',
   'User-attested acquisition facts are conversationally supplied and are not documentary evidence; verify against source records before lodgement.',
   'Unresolved warnings listed below remain outstanding and must be reviewed by the accountant before lodgement.',
@@ -103,7 +100,7 @@ function buildPack(
       // exactly as the controller's `getReturnReadiness` does, so the pack can
       // never contradict the live readiness -- e.g. an attest-without-reconcile
       // flow leaves persisted statuses stale but the pack stays accurate.
-      investments: deriveInvestmentsStatusFromIssues(state.events, issues),
+      investments: deriveDraftInvestmentsStatus(state, issues),
     },
     evidenceIndex: state.evidence.map((item) => ({
       evidenceId: item.id,
@@ -153,10 +150,7 @@ export function generateReviewPack(
   actor: Actor,
   now: () => string,
 ): Result<{ state: ReturnState; pack: ReviewPack }> {
-  const validation =
-    state.deductions.length > 0 || state.disposals.length > 0 || state.events.length === 0
-      ? validateDraftReviewPack(state)
-      : validateReviewPack(state);
+  const validation = validateDraftReviewPack(state);
   if (!validation.canGenerate) {
     return {
       ok: false,
