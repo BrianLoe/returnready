@@ -260,7 +260,7 @@ Tools use the imperative `document.modelContext.registerTool()` API and register
 - Inputs: event ID, acquisition date, positive unit price, and currency from an enum.
 - Output: updated event readiness and matched FX-evidence identifier.
 - Mutation: only the named event and activity log.
-- Validation: rejects unknown IDs, invalid dates, unsupported currencies, and non-positive values without changing state.
+- Validation: rejects unknown IDs, invalid dates, unsupported currencies, and non-positive values without changing state. Also rejects (with `invalid_input`) an event whose acquisition is already recorded (provenance not `missing`): the tool resolves missing facts and never overwrites resolved ones, matching the human UI, which renders the acquisition form only while provenance is `missing`.
 - Provenance: records the values as a user attestation, not documentary evidence.
 - Annotation: `readOnlyHint: false`, `untrustedContentHint: false`.
 

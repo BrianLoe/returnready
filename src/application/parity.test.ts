@@ -107,6 +107,11 @@ function normalizeState(state: ReturnState): unknown {
   return {
     ...state,
     activity: state.activity.map(normalizeActivity),
+    // Strip the stored pack's `generatedAt` for the same reason the top-level
+    // pack comparison does (see `normalizePack`): the parity contract must not
+    // silently depend on incidental clock determinism. Both controllers share
+    // `fixedNow` so it matches today, but strip it regardless.
+    reviewPack: state.reviewPack ? normalizePack(state.reviewPack) : null,
   };
 }
 

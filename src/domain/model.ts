@@ -4,6 +4,11 @@
 // boundary, and (in later tasks) domain actions and the WebMCP adapter.
 // Keep this module free of behaviour: it defines shape only.
 
+// Type-only, so this mutual reference with `./reviewPack` is fully erased at
+// compile time and creates no runtime import cycle. The generated pack is a
+// domain fact once produced, so it belongs on `ReturnState` below.
+import type { ReviewPack } from './reviewPack';
+
 export type Currency = 'AUD' | 'USD';
 export type Severity = 'blocker' | 'warning';
 export type Actor = 'human' | 'agent';
@@ -210,6 +215,12 @@ export interface ReturnState {
   warningCount: number;
   currentStep: Step;
   reviewPackId: string | null;
+  /**
+   * The generated review pack, owned by application state (not derived at
+   * render time). Non-null whenever `reviewPackId` is set; `null` before any
+   * generation and after `reset()` recreates state from the fixture.
+   */
+  reviewPack: ReviewPack | null;
   evidence: EvidenceItem[];
   events: InvestmentEvent[];
   issues: ValidationIssue[];

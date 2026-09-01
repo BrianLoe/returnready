@@ -45,6 +45,7 @@ const rawFixture: ReturnState = {
   warningCount: 0,
   currentStep: 'investments',
   reviewPackId: null,
+  reviewPack: null,
   evidence: [
     {
       id: 'ev-payg',

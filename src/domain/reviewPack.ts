@@ -16,6 +16,10 @@ import type {
   ReturnState,
   ValidationIssue,
 } from './model';
+import {
+  deriveInvestmentsStatusFromIssues,
+  deriveStatusFromIssues,
+} from './reconcile';
 import { validateReviewPack } from './validation';
 
 const REVIEW_PACK_ID = 'review-pack-2025';
@@ -70,7 +74,11 @@ function buildPack(
     sectionReadiness: {
       income: state.incomeStatus,
       deductions: state.deductionsStatus,
-      investments: state.investmentsStatus,
+      // Derived FRESH from the same `issues` (not `state.investmentsStatus`),
+      // exactly as the controller's `getReturnReadiness` does, so the pack can
+      // never contradict the live readiness -- e.g. an attest-without-reconcile
+      // flow leaves persisted statuses stale but the pack stays accurate.
+      investments: deriveInvestmentsStatusFromIssues(state.events, issues),
     },
     evidenceIndex: state.evidence.map((item) => ({
       evidenceId: item.id,
@@ -82,7 +90,9 @@ function buildPack(
       eventId: event.id,
       assetClass: event.assetClass,
       symbol: event.symbol,
-      status: event.status,
+      // Fresh per-event status from the same issues (not `event.status`), for
+      // the same non-divergence reason as the section rollup above.
+      status: deriveStatusFromIssues(issues.filter((issue) => issue.eventId === event.id)),
       acquisitionProvenance: event.acquisition.provenance,
     })),
     unresolvedWarnings: issues.filter((issue) => issue.severity === 'warning'),
@@ -109,16 +119,30 @@ export function generateReviewPack(
   }
 
   if (state.reviewPackId === REVIEW_PACK_ID) {
-    // Idempotent repeat: same pack id, no new activity, state unchanged.
+    // Idempotent repeat: return the STORED pack rather than rebuilding it.
+    // Rebuilding would call `now()` again and drift `generatedAt`, so the
+    // pack must be read back from state, not regenerated.
+    const storedPack = state.reviewPack;
+    if (storedPack === null) {
+      // Unreachable: `reviewPackId` is only ever set together with
+      // `reviewPack` (below). Guarding narrows the type without `!` and makes
+      // the invariant explicit.
+      throw new Error('Invariant: reviewPackId is set but no review pack is stored.');
+    }
     return {
       ok: true,
       changed: false,
-      value: { state, pack: buildPack(state, validation.issues, now) },
+      value: { state, pack: storedPack },
     };
   }
 
   const clone = structuredClone(state);
   clone.reviewPackId = REVIEW_PACK_ID;
+
+  // Build the pack ONCE (a single `now()` call) and store it on state, so
+  // every later read returns this exact snapshot.
+  const pack = buildPack(clone, validation.issues, now);
+  clone.reviewPack = pack;
 
   const activityEntry: ActivityEntry = {
     id: `activity-${clone.activity.length + 1}`,
@@ -133,6 +157,6 @@ export function generateReviewPack(
   return {
     ok: true,
     changed: true,
-    value: { state: clone, pack: buildPack(clone, validation.issues, now) },
+    value: { state: clone, pack },
   };
 }

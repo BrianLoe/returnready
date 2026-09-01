@@ -28,6 +28,25 @@ export function recordAcquisitionDetails(
     };
   }
 
+  // Provenance guard (spec §11: this tool RESOLVES missing acquisition facts;
+  // it does not overwrite resolved ones). The human UI only renders the
+  // acquisition form while provenance is 'missing', so overwriting an
+  // already-recorded acquisition (documentary OR user-attested) is a
+  // capability no human has -- reject it here in the domain so both the
+  // manual and WebMCP paths inherit the same rule. `invalid_input`, not
+  // `blocked`: nothing is blocking generation; the input is simply not
+  // applicable to an already-resolved event.
+  if (event.acquisition.provenance !== 'missing') {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: 'Acquisition facts for this event are already recorded and cannot be overwritten.',
+      },
+      changed: false,
+    };
+  }
+
   if (!SUPPORTED_CURRENCIES.includes(input.currency)) {
     return {
       ok: false,

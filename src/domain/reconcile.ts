@@ -127,6 +127,23 @@ function deriveInvestmentsStatus(events: readonly InvestmentEvent[]): Investment
 }
 
 /**
+ * Rolls a set of events up to one investments-section status directly from a
+ * set of freshly-derived issues (not from each event's persisted `status`).
+ * Shared by the controller's read-only `getReturnReadiness` and the review
+ * pack's `buildPack` so both derive the section status identically -- fresh
+ * from the same issues -- rather than re-implementing the two-step rollup.
+ */
+export function deriveInvestmentsStatusFromIssues(
+  events: readonly InvestmentEvent[],
+  issues: readonly ValidationIssue[],
+): InvestmentsStatus {
+  const statuses = events.map((event) =>
+    deriveStatusFromIssues(issues.filter((issue) => issue.eventId === event.id)),
+  );
+  return deriveInvestmentsStatusFromEventStatuses(statuses);
+}
+
+/**
  * Replaces `state.issues` entries for exactly the given event ids with a
  * fresh derivation from those events' current facts, then recomputes the
  * dependent aggregate fields (`blockerCount`, `warningCount`,

@@ -387,7 +387,11 @@ describe('tool handlers: invalid input is rejected and state is left unchanged',
 });
 
 describe('tool handlers: first mutation logs one activity entry, repeats log none', () => {
-  it('record_acquisition_details is idempotent on repeat calls', async () => {
+  it('record_acquisition_details records once, then rejects re-recording a resolved acquisition', async () => {
+    // First call resolves AAPL's MISSING acquisition (1 activity entry).
+    // The provenance guard then makes a second identical call reject with
+    // `invalid_input` -- no new activity, listener still called once -- since
+    // the tool resolves missing facts and never overwrites resolved ones.
     const controller = createReturnReadyController({ now: fixedNow });
     const { registrations } = registerWithFake(controller);
     const listener = vi.fn();
@@ -399,7 +403,8 @@ describe('tool handlers: first mutation logs one activity entry, repeats log non
     expect(listener).toHaveBeenCalledTimes(1);
 
     const second = await callTool(registrations, 'record_acquisition_details', AAPL_ACQUISITION_ARGS);
-    expect((second.parsed as { ok: true; changed: boolean }).changed).toBe(false);
+    expect((second.parsed as { ok: boolean }).ok).toBe(false);
+    expect((second.parsed as { error: { code: string } }).error.code).toBe('invalid_input');
     expect(controller.getState().activity).toHaveLength(1);
     expect(listener).toHaveBeenCalledTimes(1);
   });
@@ -491,7 +496,6 @@ describe('tool handlers: output budget', () => {
     const controller = createReturnReadyController({ now: fixedNow });
     const { registrations } = registerWithFake(controller);
 
-    await callTool(registrations, 'record_acquisition_details', AAPL_ACQUISITION_ARGS);
     await callTool(registrations, 'reconcile_investment_evidence', {
       eventIds: ['evt-msft', 'evt-aapl', 'evt-btc'],
     });

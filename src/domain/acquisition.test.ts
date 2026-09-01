@@ -187,20 +187,27 @@ describe('recordAcquisitionDetails', () => {
     expect(result.value.state.activity[1].actor).toBe(actor);
   });
 
-  it('an exact repeat attestation is idempotent: changed is false and no new activity is added', () => {
+  it('rejects re-recording an already-resolved acquisition without mutating state', () => {
+    // Provenance guard: the first call resolves AAPL's MISSING acquisition to
+    // 'user-attested'; a second identical call is no longer resolving a
+    // missing fact, so it rejects with `invalid_input` and changes nothing.
+    // This mirrors the human UI, which renders the acquisition form only while
+    // provenance is 'missing'.
     const state = createDemoReturnState();
     const first = recordAcquisitionDetails(state, validInput, actor, fixedNow);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     expect(first.changed).toBe(true);
-    const activityCountAfterFirst = first.value.state.activity.length;
 
+    const afterFirst = structuredClone(first.value.state);
     const second = recordAcquisitionDetails(first.value.state, validInput, actor, fixedNow);
-    expect(second.ok).toBe(true);
-    if (!second.ok) return;
+    expect(second.ok).toBe(false);
+    if (second.ok) return;
 
+    expect(second.error.code).toBe('invalid_input');
     expect(second.changed).toBe(false);
-    expect(second.value.state.activity).toHaveLength(activityCountAfterFirst);
-    expect(second.value.state).toEqual(first.value.state);
+    // The state object passed in is left referentially and structurally
+    // unchanged (the early reject returns before any clone).
+    expect(first.value.state).toEqual(afterFirst);
   });
 });

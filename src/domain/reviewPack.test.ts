@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createDemoReturnState } from '../fixtures/demoReturn';
 import type { Currency } from './model';
 import { recordAcquisitionDetails } from './acquisition';
+import { deriveInvestmentsStatusFromIssues, deriveStatusFromIssues } from './reconcile';
 import { generateReviewPack } from './reviewPack';
+import { validateReviewPack } from './validation';
 
 const actor = 'human' as const;
 const fixedNow = () => '2026-08-31T00:00:00.000Z';
@@ -86,6 +88,44 @@ describe('generateReviewPack', () => {
     for (const fragment of forbiddenKeyFragments) {
       expect(keys.some((key) => key.includes(fragment))).toBe(false);
     }
+  });
+
+  it('derives pack statuses fresh from validation issues, not from persisted event/section status', () => {
+    // Attest AAPL WITHOUT reconciling msft/btc first: only AAPL's persisted
+    // status is refreshed, so evt-msft and evt-btc keep the fixture's stale
+    // 'unreviewed', and the persisted section rollup stays 'unreviewed'. The
+    // pack must nonetheless reflect fresh derivation (msft=evidence-complete,
+    // btc=warning, section=warning) so it never self-contradicts.
+    const state = attestAapl(createDemoReturnState());
+
+    // Guard: this scenario only proves anything while persisted status is stale.
+    expect(state.investmentsStatus).toBe('unreviewed');
+    expect(state.events.find((e) => e.id === 'evt-btc')?.status).toBe('unreviewed');
+
+    const result = generateReviewPack(state, actor, fixedNow);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const { pack } = result.value;
+
+    const { issues } = validateReviewPack(state);
+
+    // Section rollup matches the shared fresh derivation, not persisted state.
+    expect(pack.sectionReadiness.investments).toBe(
+      deriveInvestmentsStatusFromIssues(state.events, issues),
+    );
+    expect(pack.sectionReadiness.investments).toBe('warning');
+
+    // Every event row matches fresh per-event derivation from the same issues.
+    for (const row of pack.eventReviewTable) {
+      const expected = deriveStatusFromIssues(issues.filter((i) => i.eventId === row.eventId));
+      expect(row.status).toBe(expected);
+    }
+    // Concretely: msft (persisted 'unreviewed') reads fresh as evidence-complete,
+    // btc as a warning.
+    expect(pack.eventReviewTable.find((r) => r.eventId === 'evt-msft')?.status).toBe(
+      'evidence-complete-for-review',
+    );
+    expect(pack.eventReviewTable.find((r) => r.eventId === 'evt-btc')?.status).toBe('warning');
   });
 
   it('repeat generation returns the same pack id and adds no duplicate activity', () => {

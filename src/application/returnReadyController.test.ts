@@ -194,17 +194,24 @@ describe('createReturnReadyController: recordAcquisitionDetails', () => {
     expect(controller.getReturnReadiness().blockerCount).toBe(0);
   });
 
-  it('exact repeat is idempotent: changed:false, no new activity, no notify', () => {
+  it('re-recording a resolved acquisition is rejected and leaves state unchanged', () => {
+    // Provenance guard: once AAPL's acquisition is recorded (user-attested),
+    // a second attempt no longer resolves a MISSING event, so the domain
+    // rejects it with `invalid_input` and makes no further state change --
+    // matching the human UI, which only renders the acquisition form while
+    // provenance is 'missing'.
     const controller = createReturnReadyController({ now: fixedNow });
     controller.recordAcquisitionDetails(AAPL_ACQUISITION_INPUT, 'human');
+    const before = controller.getState();
 
     const listener = vi.fn();
     controller.subscribe(listener);
     const result = controller.recordAcquisitionDetails(AAPL_ACQUISITION_INPUT, 'human');
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.changed).toBe(false);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('invalid_input');
+    expect(controller.getState()).toBe(before);
     expect(listener).not.toHaveBeenCalled();
     expect(controller.getState().activity).toHaveLength(1);
   });

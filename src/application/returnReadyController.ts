@@ -21,11 +21,7 @@ import type {
 } from '../domain/model';
 import { recordAcquisitionDetails as domainRecordAcquisitionDetails } from '../domain/acquisition';
 import { normalizeEvidence } from '../domain/normalizeEvidence';
-import {
-  deriveInvestmentsStatusFromEventStatuses,
-  deriveStatusFromIssues,
-  reconcileEvents,
-} from '../domain/reconcile';
+import { deriveInvestmentsStatusFromIssues, reconcileEvents } from '../domain/reconcile';
 import type { ReviewPack } from '../domain/reviewPack';
 import { generateReviewPack as domainGenerateReviewPack } from '../domain/reviewPack';
 import { validateReviewPack as domainValidateReviewPack } from '../domain/validation';
@@ -157,16 +153,12 @@ export function createReturnReadyController(options?: { now?: () => string }): R
       const blockerCount = issues.filter((issue) => issue.severity === 'blocker').length;
       const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
 
-      // Roll fresh per-event statuses up to one section-level label by
-      // reusing the exact domain rollup rule (`deriveInvestmentsStatusFromEventStatuses`),
-      // fed with per-event statuses derived from these same fresh issues via
-      // `deriveStatusFromIssues` -- both exported from `reconcile.ts`. This
-      // never re-derives the rule itself, only supplies it fresh (not yet
-      // persisted) inputs.
-      const freshEventStatuses = state.events.map((event) =>
-        deriveStatusFromIssues(issues.filter((issue) => issue.eventId === event.id)),
-      );
-      const investmentsStatus = deriveInvestmentsStatusFromEventStatuses(freshEventStatuses);
+      // Roll the fresh issues up to one section-level label via the shared
+      // domain rule (`deriveInvestmentsStatusFromIssues`), which derives each
+      // per-event status from these same fresh issues and then applies the
+      // rollup. `buildPack` uses the identical helper, so the readiness
+      // summary and the generated pack never diverge.
+      const investmentsStatus = deriveInvestmentsStatusFromIssues(state.events, issues);
 
       return {
         incomeStatus: state.incomeStatus,
