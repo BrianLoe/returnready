@@ -1,0 +1,2 @@
+source_record_id,asset_type,symbol,quantity,acquisition_date,acquisition_unit_price_minor,acquisition_currency,disposal_date,proceeds_minor,currency,fee_minor
+crypto-btc-01,crypto,BTC,0.5,2021-11-01,6000000,USD,2026-06-20,1500000,USD,

@@ -52,6 +52,76 @@ export interface ActivityEntry {
   recordId: string;
 }
 
+// --- Codex-populated draft model -----------------------------------------
+
+export type Provenance = 'documentary' | 'user-attested';
+export type DeductionCategory = 'work-from-home' | 'other-work-related';
+export type DeductionUnit = 'hours' | 'AUD';
+export type DisposalAssetType = 'foreign-share' | 'crypto';
+
+export interface IncomeSummary {
+  description: string;
+  grossIncomeMinor: number;
+  taxWithheldMinor: number;
+  currency: 'AUD';
+  sourceLabel: string;
+}
+
+export interface DeductionInput {
+  sourceRecordId: string;
+  category: DeductionCategory;
+  description: string;
+  periodStart: string;
+  periodEnd: string;
+  quantity: number;
+  unit: DeductionUnit;
+  claimAmountMinor?: number;
+  currency: 'AUD';
+  sourceLabel: string;
+}
+
+export interface DeductionEntry extends DeductionInput {
+  id: string;
+  provenance: Provenance;
+}
+
+export interface DisposalInput {
+  sourceRecordId: string;
+  assetType: DisposalAssetType;
+  symbol: string;
+  quantity: number;
+  acquisitionDate?: string;
+  acquisitionUnitPriceMinor?: number;
+  acquisitionCurrency?: Currency;
+  disposalDate: string;
+  proceedsMinor: number;
+  currency: Currency;
+  brokerageMinor?: number;
+  feeMinor?: number;
+  sourceLabel: string;
+}
+
+export interface DisposalEntry {
+  id: string;
+  sourceRecordId: string;
+  assetType: DisposalAssetType;
+  symbol: string;
+  quantity: number;
+  acquisition: {
+    date?: string;
+    unitPriceMinor?: number;
+    currency?: Currency;
+    provenance: Provenance | 'missing';
+  };
+  disposalDate: string;
+  proceedsMinor: number;
+  currency: Currency;
+  brokerageMinor?: number;
+  feeMinor?: number;
+  sourceLabel: string;
+  provenance: Provenance;
+}
+
 // --- Evidence model -------------------------------------------------------
 
 export type EvidenceSourceType =
@@ -208,6 +278,9 @@ export type InvestmentsStatus =
 export type Step = 'income' | 'deductions' | 'investments' | 'review-pack';
 
 export interface ReturnState {
+  incomeSummary: IncomeSummary;
+  deductions: DeductionEntry[];
+  disposals: DisposalEntry[];
   incomeStatus: FixtureSectionStatus;
   deductionsStatus: FixtureSectionStatus;
   investmentsStatus: InvestmentsStatus;

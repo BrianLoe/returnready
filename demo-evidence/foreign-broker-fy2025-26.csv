@@ -1,0 +1,3 @@
+source_record_id,asset_type,symbol,quantity,acquisition_date,acquisition_unit_price_minor,acquisition_currency,disposal_date,proceeds_minor,currency,brokerage_minor
+broker-msft-01,foreign-share,MSFT,50,2021-03-10,21500,USD,2026-04-18,1400000,USD,2500
+broker-aapl-01,foreign-share,AAPL,30,,,,2026-05-02,525000,USD,1500

@@ -38,6 +38,15 @@ function deepFreeze<T>(value: T): T {
  *   transaction fee is absent -> a warning, never a blocker.
  */
 const rawFixture: ReturnState = {
+  incomeSummary: {
+    description: 'PAYG income statement available',
+    grossIncomeMinor: 9_500_000,
+    taxWithheldMinor: 1_800_000,
+    currency: 'AUD',
+    sourceLabel: 'Synthetic PAYG income statement',
+  },
+  deductions: [],
+  disposals: [],
   incomeStatus: 'previously-reviewed',
   deductionsStatus: 'previously-reviewed',
   investmentsStatus: 'unreviewed',

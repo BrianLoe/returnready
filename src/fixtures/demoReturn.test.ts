@@ -1,10 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoReturnState } from './demoReturn';
+import wfhCsv from '../../demo-evidence/wfh-hours-fy2025-26.csv?raw';
+import brokerCsv from '../../demo-evidence/foreign-broker-fy2025-26.csv?raw';
+import cryptoCsv from '../../demo-evidence/crypto-transactions-fy2025-26.csv?raw';
 
 const EVIDENCE_IDS = ['ev-payg', 'ev-deductions', 'ev-managed-fund', 'ev-broker', 'ev-crypto', 'ev-fx'];
 const EVENT_IDS = ['evt-msft', 'evt-aapl', 'evt-btc'];
 
 describe('createDemoReturnState', () => {
+  it('opens the new population draft with PAYG context and no recorded deductions or disposals', () => {
+    const state = createDemoReturnState();
+
+    expect(state.incomeSummary).toEqual({
+      description: 'PAYG income statement available',
+      grossIncomeMinor: 9_500_000,
+      taxWithheldMinor: 1_800_000,
+      currency: 'AUD',
+      sourceLabel: 'Synthetic PAYG income statement',
+    });
+    expect(state.deductions).toEqual([]);
+    expect(state.disposals).toEqual([]);
+  });
+
+  it('ships three synthetic attachment fixtures with FY2025-26 reporting dates and one missing acquisition pair', () => {
+    expect(wfhCsv).toContain('wfh-summary-01,2025-07-08,8');
+    expect(wfhCsv).toContain('wfh-summary-01,2026-05-19,8');
+    expect(brokerCsv).toContain('broker-msft-01,foreign-share,MSFT');
+    expect(brokerCsv).toContain('broker-aapl-01,foreign-share,AAPL,30,,,,2026-05-02');
+    expect(cryptoCsv).toContain('crypto-btc-01,crypto,BTC');
+    expect(cryptoCsv).toContain('2026-06-20');
+    expect(`${wfhCsv}${brokerCsv}${cryptoCsv}`).not.toContain('2023-');
+  });
+
   it('produces deeply equal but not referentially equal state on each call', () => {
     const a = createDemoReturnState();
     const b = createDemoReturnState();
