@@ -9,7 +9,7 @@ describe('App', () => {
     render(<App />);
     expect(screen.getByRole('heading', { name: 'ReturnReady' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Prepare your 2025–26 return evidence' })).toBeVisible();
-    expect(screen.getByText(/complete the missing details yourself, or ask your browser agent/i)).toBeVisible();
+    expect(screen.getByText(/add entries manually, or ask Codex to populate/i)).toBeVisible();
 
     expect(screen.queryByText('Synthetic demo data')).not.toBeInTheDocument();
     expect(screen.queryByText('Holdings')).not.toBeInTheDocument();

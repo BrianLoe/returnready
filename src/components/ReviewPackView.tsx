@@ -3,20 +3,16 @@
 // "generated with unresolved warning" string on the domain pack itself);
 // everything else is read verbatim from the pack.
 
-import type { InvestmentEvent } from '../domain/model';
 import type { ReviewPack } from '../domain/reviewPack';
 
-function symbolFor(events: readonly InvestmentEvent[], eventId: string): string {
-  return events.find((event) => event.id === eventId)?.symbol ?? eventId;
+function labelFor(pack: ReviewPack, recordId: string): string {
+  return pack.disposalReviewTable.find((entry) => `disposal-${entry.sourceRecordId}` === recordId)?.symbol
+    ?? pack.deductionEvidence.find((entry) => `deduction-${entry.sourceRecordId}` === recordId)?.description
+    ?? pack.eventReviewTable.find((entry) => entry.eventId === recordId)?.symbol
+    ?? recordId;
 }
 
-export function ReviewPackView({
-  pack,
-  events,
-}: {
-  pack: ReviewPack;
-  events: readonly InvestmentEvent[];
-}) {
+export function ReviewPackView({ pack }: { pack: ReviewPack }) {
   const hasUnresolvedWarnings = pack.unresolvedWarnings.length > 0;
 
   return (
@@ -26,8 +22,13 @@ export function ReviewPackView({
       </h2>
       <p>Generated {pack.generatedAt}</p>
 
-      <section aria-labelledby="review-pack-events-heading">
-        <h3 id="review-pack-events-heading">Investment events</h3>
+      {pack.deductionEvidence.length > 0 && <section aria-labelledby="review-pack-deductions-heading">
+        <h3 id="review-pack-deductions-heading">Deduction evidence</h3>
+        <ul>{pack.deductionEvidence.map((entry) => <li key={entry.sourceRecordId}>{entry.description}: {entry.quantity} {entry.unit} — {entry.sourceLabel} ({entry.provenance})</li>)}</ul>
+      </section>}
+
+      {pack.disposalReviewTable.length > 0 && <section aria-labelledby="review-pack-events-heading">
+        <h3 id="review-pack-events-heading">Investment disposals</h3>
         <table>
           <thead>
             <tr>
@@ -38,19 +39,19 @@ export function ReviewPackView({
             </tr>
           </thead>
           <tbody>
-            {pack.eventReviewTable.map((row) => (
-              <tr key={row.eventId}>
+            {pack.disposalReviewTable.map((row) => (
+              <tr key={row.sourceRecordId}>
                 <td>{row.symbol}</td>
-                <td>{row.assetClass}</td>
+                <td>{row.assetType}</td>
                 <td>{row.status}</td>
                 <td>{row.acquisitionProvenance}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </section>
+      </section>}
 
-      <section aria-labelledby="review-pack-evidence-heading">
+      {pack.evidenceIndex.length > 0 && <section aria-labelledby="review-pack-evidence-heading">
         <h3 id="review-pack-evidence-heading">Evidence links</h3>
         <ul>
           {pack.evidenceIndex.map((entry) => (
@@ -59,7 +60,7 @@ export function ReviewPackView({
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
 
       {hasUnresolvedWarnings && (
         <section aria-labelledby="review-pack-warnings-heading">
@@ -67,7 +68,7 @@ export function ReviewPackView({
           <ul>
             {pack.unresolvedWarnings.map((issue) => (
               <li key={issue.id}>
-                <strong>{symbolFor(events, issue.eventId)}</strong> — <span>{issue.message}</span>
+                <strong>{labelFor(pack, issue.eventId)}</strong> — <span>{issue.message}</span>
               </li>
             ))}
           </ul>

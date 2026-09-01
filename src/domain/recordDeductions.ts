@@ -24,8 +24,12 @@ function validateInput(input: DeductionInput): string | null {
   return null;
 }
 
-function toEntry(input: DeductionInput): DeductionEntry {
-  return { id: `deduction-${input.sourceRecordId}`, ...structuredClone(input), provenance: 'documentary' };
+function toEntry(input: DeductionInput, actor: Actor): DeductionEntry {
+  return {
+    id: `deduction-${input.sourceRecordId}`,
+    ...structuredClone(input),
+    provenance: actor === 'agent' ? 'documentary' : 'user-attested',
+  };
 }
 
 export function recordDeductions(
@@ -40,7 +44,7 @@ export function recordDeductions(
   const ids = inputs.map((input) => input.sourceRecordId);
   if (new Set(ids).size !== ids.length) return invalid('sourceRecordId values must be unique within a batch.');
 
-  const entries = inputs.map(toEntry);
+  const entries = inputs.map((input) => toEntry(input, actor));
   for (let index = 0; index < inputs.length; index += 1) {
     const message = validateInput(inputs[index]);
     if (message) return invalid(message);

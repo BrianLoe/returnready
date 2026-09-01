@@ -7,24 +7,24 @@
 // no readiness or severity rules of its own.
 
 import { useEffect, useRef } from 'react';
-import type { InvestmentEvent, ValidationIssue } from '../domain/model';
+import type { ValidationIssue } from '../domain/model';
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
-function symbolFor(events: readonly InvestmentEvent[], eventId: string): string {
-  return events.find((event) => event.id === eventId)?.symbol ?? eventId;
+function labelFor(records: readonly { id: string; label: string }[], recordId: string): string {
+  return records.find((record) => record.id === recordId)?.label ?? recordId;
 }
 
 export function ValidationModal({
   issues,
   canGenerate,
-  events,
+  records,
   onClose,
 }: {
   issues: readonly ValidationIssue[];
   canGenerate: boolean;
-  events: readonly InvestmentEvent[];
+  records: readonly { id: string; label: string }[];
   onClose: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -90,7 +90,7 @@ export function ValidationModal({
                 <ul>
                   {blockers.map((issue) => (
                     <li key={issue.id} id={`issue-${issue.id}`}>
-                      <strong>{symbolFor(events, issue.eventId)}</strong> — <span>{issue.message}</span>
+                      <strong>{labelFor(records, issue.eventId)}</strong> — <span>{issue.message}</span>
                     </li>
                   ))}
                 </ul>
@@ -103,7 +103,7 @@ export function ValidationModal({
                 <ul>
                   {warnings.map((issue) => (
                     <li key={issue.id} id={`issue-${issue.id}`}>
-                      <strong>{symbolFor(events, issue.eventId)}</strong> — <span>{issue.message}</span>
+                      <strong>{labelFor(records, issue.eventId)}</strong> — <span>{issue.message}</span>
                     </li>
                   ))}
                 </ul>

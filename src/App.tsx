@@ -5,13 +5,15 @@ import {
   useReturnReadyController,
   useReturnState,
   useValidationModalOpen,
-  formatFixtureSectionStatus,
 } from './application/ReturnReadyContext';
 import { ReturnStepper } from './components/ReturnStepper';
-import { InvestmentCard } from './components/InvestmentCard';
 import { ActivityStrip } from './components/ActivityStrip';
 import { ValidationModal } from './components/ValidationModal';
 import { ReviewPackView } from './components/ReviewPackView';
+import { DeductionForm } from './components/DeductionForm';
+import { DeductionList } from './components/DeductionList';
+import { DisposalForm } from './components/DisposalForm';
+import { DisposalList } from './components/DisposalList';
 import { registerReturnReadyTools } from './webmcp/registerTools';
 
 const demoNow = () => '2026-06-30T00:00:00.000Z';
@@ -20,7 +22,7 @@ function ReturnReadyApp() {
   const controller = useReturnReadyController();
   const state = useReturnState();
   const modalOpen = useValidationModalOpen();
-  const readiness = controller.getReturnReadiness();
+  const draft = controller.getReturnDraft();
 
   const generateButtonRef = useRef<HTMLButtonElement>(null);
   const [lastValidation, setLastValidation] = useState<ValidationSummary | null>(null);
@@ -40,19 +42,9 @@ function ReturnReadyApp() {
     return () => abortController.abort();
   }, [controller]);
 
-  const foreignShareEvents = state.events.filter((event) => event.assetClass === 'foreign-share');
-  const cryptoEvents = state.events.filter((event) => event.assetClass === 'crypto');
-
   function refreshValidation() {
     const result = controller.validateReviewPack('human');
     if (result.ok) setLastValidation(result.value);
-  }
-
-  function handleReconcile() {
-    controller.reconcileInvestmentEvidence(
-      state.events.map((event) => event.id),
-      'human',
-    );
   }
 
   function handleValidate() {
@@ -91,8 +83,8 @@ function ReturnReadyApp() {
       <main>
       <h2 className="page-title">Prepare your 2025–26 return evidence</h2>
       <p className="page-intro">
-        Evidence-first preparation for your investment disposals. ReturnReady does not lodge returns or
-        provide tax advice.
+        Turn scattered deduction worksheets and investment statements into an evidence-linked draft.
+        ReturnReady does not lodge returns or provide tax advice.
       </p>
       {webmcpAvailable === false && (
         <p className="webmcp-status">
@@ -100,18 +92,30 @@ function ReturnReadyApp() {
         </p>
       )}
 
-      <ReturnStepper state={state} readiness={readiness} />
+      <ReturnStepper state={state} draft={draft} />
+
+      <aside className="agent-workflow-callout" aria-labelledby="agent-workflow-heading">
+        <h2 id="agent-workflow-heading">Populate this draft manually or with Codex</h2>
+        <p>
+          Add entries manually, or ask Codex to populate this draft from synthetic evidence attached
+          in your conversation. ReturnReady receives structured facts only—not files or raw text.
+        </p>
+        <p className="agent-workflow-callout__note">
+          Agent actions use the same domain controls and appear in the audit trail.
+        </p>
+      </aside>
 
       <section id="income" className="return-section return-section--summary" aria-labelledby="income-heading">
         <h2 id="income-heading">Income</h2>
-        <p className="reviewed-status"><span aria-hidden="true">✓</span> {formatFixtureSectionStatus(state.incomeStatus)}</p>
-        <p>PAYG income statement summary.</p>
+        <p className="reviewed-status"><span aria-hidden="true">✓</span> Prefilled context</p>
+        <p>{state.incomeSummary.description}</p>
       </section>
 
-      <section id="deductions" className="return-section return-section--summary" aria-labelledby="deductions-heading">
+      <section id="deductions" className="return-section return-section--primary" aria-labelledby="deductions-heading">
         <h2 id="deductions-heading">Deductions</h2>
-        <p className="reviewed-status"><span aria-hidden="true">✓</span> {formatFixtureSectionStatus(state.deductionsStatus)}</p>
-        <p>Work-related deduction summary.</p>
+        <p>{draft.deductionCount} evidence-backed deduction entr{draft.deductionCount === 1 ? 'y' : 'ies'} recorded.</p>
+        <DeductionList entries={state.deductions} />
+        <DeductionForm />
       </section>
 
       <section
@@ -120,43 +124,14 @@ function ReturnReadyApp() {
         aria-labelledby="investments-heading"
       >
         <div className="section-heading">
-          <p className="section-kicker">Active review area</p>
-          <h2 id="investments-heading">Investments</h2>
+          <p className="section-kicker">FY2025–26</p>
+          <h2 id="investments-heading">Investment disposals</h2>
         </div>
-
-        <aside className="agent-workflow-callout" aria-labelledby="agent-workflow-heading">
-          <h3 id="agent-workflow-heading">Complete the evidence your way</h3>
-          <p>
-            Complete the missing details yourself, or ask your browser agent to reconcile the imported
-            evidence, record the missing acquisition details, and prepare the review pack.
-          </p>
-          <p className="agent-workflow-callout__note">
-            Agent actions use the same controls and appear in the audit trail below.
-          </p>
-        </aside>
-
-        <section className="asset-group" aria-labelledby="foreign-shares-heading">
-          <h3 id="foreign-shares-heading">Imported foreign-share disposals</h3>
-          <div className="investment-list">
-            {foreignShareEvents.map((event) => (
-              <InvestmentCard key={event.id} event={event} />
-            ))}
-          </div>
-        </section>
-
-        <section className="asset-group" aria-labelledby="crypto-assets-heading">
-          <h3 id="crypto-assets-heading">Imported crypto disposals</h3>
-          <div className="investment-list">
-            {cryptoEvents.map((event) => (
-              <InvestmentCard key={event.id} event={event} />
-            ))}
-          </div>
-        </section>
+        <p>{draft.disposalCount} disposal record{draft.disposalCount === 1 ? '' : 's'} recorded.</p>
+        <DisposalList entries={state.disposals} issues={draft.issues} />
+        <DisposalForm />
 
         <div className="action-bar">
-          <button type="button" onClick={handleReconcile}>
-            Reconcile investment evidence
-          </button>
           <button type="button" onClick={handleValidate}>
             Validate review pack
           </button>
@@ -174,7 +149,7 @@ function ReturnReadyApp() {
       <section id="review-pack" className="return-section" aria-labelledby="review-pack-section-heading">
         <h2 id="review-pack-section-heading">Review pack</h2>
         {state.reviewPack ? (
-          <ReviewPackView pack={state.reviewPack} events={state.events} />
+          <ReviewPackView pack={state.reviewPack} />
         ) : (
           <p>No review pack has been generated yet.</p>
         )}
@@ -183,8 +158,11 @@ function ReturnReadyApp() {
       {modalOpen && (
         <ValidationModal
           issues={lastValidation?.issues ?? []}
-          canGenerate={lastValidation?.canGenerate ?? readiness.canGenerate}
-          events={state.events}
+          canGenerate={lastValidation?.canGenerate ?? draft.canGenerate}
+          records={[
+            ...state.deductions.map((entry) => ({ id: entry.id, label: entry.description })),
+            ...state.disposals.map((entry) => ({ id: entry.id, label: entry.symbol })),
+          ]}
           onClose={handleCloseModal}
         />
       )}

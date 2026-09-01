@@ -45,7 +45,7 @@ function validateInput(input: DisposalInput): string | null {
   return null;
 }
 
-function toEntry(input: DisposalInput): DisposalEntry {
+function toEntry(input: DisposalInput, actor: Actor): DisposalEntry {
   const acquisition = input.acquisitionDate === undefined
     ? { provenance: 'missing' as const }
     : {
@@ -67,7 +67,7 @@ function toEntry(input: DisposalInput): DisposalEntry {
     ...(input.brokerageMinor === undefined ? {} : { brokerageMinor: input.brokerageMinor }),
     ...(input.feeMinor === undefined ? {} : { feeMinor: input.feeMinor }),
     sourceLabel: input.sourceLabel,
-    provenance: 'documentary',
+    provenance: actor === 'agent' ? 'documentary' : 'user-attested',
   };
 }
 
@@ -83,7 +83,7 @@ export function recordDisposals(
   const ids = inputs.map((input) => input.sourceRecordId);
   if (new Set(ids).size !== ids.length) return invalid('sourceRecordId values must be unique within a batch.');
 
-  const entries = inputs.map(toEntry);
+  const entries = inputs.map((input) => toEntry(input, actor));
   for (let index = 0; index < inputs.length; index += 1) {
     const message = validateInput(inputs[index]);
     if (message) return invalid(message);

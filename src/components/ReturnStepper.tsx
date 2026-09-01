@@ -5,8 +5,7 @@
 // label is read straight from controller state/readiness.
 
 import type { ReturnState } from '../domain/model';
-import type { ReturnReadiness } from '../application/returnReadyController';
-import { formatFixtureSectionStatus, formatInvestmentsStatus } from '../application/ReturnReadyContext';
+import type { ReturnDraftSummary } from '../application/returnReadyController';
 
 interface StepDefinition {
   id: ReturnState['currentStep'];
@@ -17,13 +16,21 @@ interface StepDefinition {
   tone: 'complete' | 'attention' | 'pending';
 }
 
-export function ReturnStepper({ state, readiness }: { state: ReturnState; readiness: ReturnReadiness }) {
+export function ReturnStepper({ state, draft }: { state: ReturnState; draft: ReturnDraftSummary }) {
+  const disposalIssues = draft.issues.filter((issue) => issue.eventId.startsWith('disposal-'));
+  const disposalStatus = draft.disposalCount === 0
+    ? 'Empty'
+    : disposalIssues.some((issue) => issue.severity === 'blocker')
+      ? 'Action required'
+      : disposalIssues.some((issue) => issue.severity === 'warning')
+        ? 'Warning: review needed'
+        : 'Evidence complete for review';
   const steps: StepDefinition[] = [
     {
       id: 'income',
       href: '#income',
       label: 'Income',
-      status: formatFixtureSectionStatus(state.incomeStatus),
+      status: 'Prefilled',
       icon: '✓',
       tone: 'complete',
     },
@@ -31,17 +38,17 @@ export function ReturnStepper({ state, readiness }: { state: ReturnState; readin
       id: 'deductions',
       href: '#deductions',
       label: 'Deductions',
-      status: formatFixtureSectionStatus(state.deductionsStatus),
-      icon: '✓',
-      tone: 'complete',
+      status: draft.deductionCount > 0 ? 'Evidence recorded' : 'Empty',
+      icon: draft.deductionCount > 0 ? '✓' : '—',
+      tone: draft.deductionCount > 0 ? 'complete' : 'pending',
     },
     {
       id: 'investments',
       href: '#investments',
-      label: 'Investments',
-      status: formatInvestmentsStatus(readiness.investmentsStatus),
-      icon: readiness.investmentsStatus === 'evidence-complete-for-review' ? '✓' : '!',
-      tone: readiness.investmentsStatus === 'evidence-complete-for-review' ? 'complete' : 'attention',
+      label: 'Disposals',
+      status: disposalStatus,
+      icon: draft.disposalCount === 0 ? '—' : disposalStatus === 'Evidence complete for review' ? '✓' : '!',
+      tone: draft.disposalCount === 0 ? 'pending' : disposalStatus === 'Evidence complete for review' ? 'complete' : 'attention',
     },
     {
       id: 'review-pack',
