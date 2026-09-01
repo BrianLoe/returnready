@@ -3,6 +3,7 @@ import { createDemoReturnState } from '../fixtures/demoReturn';
 import type { Actor, Currency, ReturnState } from './model';
 import { reconcileEvents } from './reconcile';
 import { recordAcquisitionDetails } from './acquisition';
+import { recordDisposals } from './recordDisposals';
 
 const actor: Actor = 'human';
 const fixedNow = () => '2026-08-31T00:00:00.000Z';
@@ -21,6 +22,48 @@ function getEvent(state: ReturnState, id: string) {
 }
 
 describe('recordAcquisitionDetails', () => {
+  it('resolves a recorded draft disposal as a user attestation without requiring in-app file evidence', () => {
+    const recorded = recordDisposals(
+      createDemoReturnState(),
+      [{
+        sourceRecordId: 'broker-aapl-01',
+        assetType: 'foreign-share',
+        symbol: 'AAPL',
+        quantity: 30,
+        disposalDate: '2026-05-02',
+        proceedsMinor: 525_000,
+        currency: 'USD',
+        brokerageMinor: 1_500,
+        sourceLabel: 'foreign-broker-fy2025-26.csv',
+      }],
+      actor,
+      fixedNow,
+    );
+    expect(recorded.ok).toBe(true);
+    if (!recorded.ok) return;
+
+    const result = recordAcquisitionDetails(
+      recorded.value.state,
+      {
+        eventId: 'disposal-broker-aapl-01',
+        acquisitionDate: '2022-09-15',
+        unitPrice: 150,
+        currency: 'USD',
+      },
+      actor,
+      fixedNow,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.state.disposals[0].acquisition).toEqual({
+      date: '2022-09-15',
+      unitPriceMinor: 15_000,
+      currency: 'USD',
+      provenance: 'user-attested',
+    });
+    expect(result.value.state.issues.some((issue) => issue.code === 'missing-acquisition')).toBe(false);
+  });
+
   it('rejects an unknown event id without mutating state', () => {
     const state = createDemoReturnState();
     const snapshot = structuredClone(state);

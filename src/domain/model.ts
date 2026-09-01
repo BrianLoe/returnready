@@ -35,7 +35,7 @@ export interface UserAttestation {
 
 export interface ValidationIssue {
   id: string;
-  code: 'missing-acquisition' | 'missing-crypto-fee';
+  code: 'missing-acquisition' | 'missing-crypto-fee' | 'deduction-amount-not-calculated';
   severity: Severity;
   eventId: string;
   message: string;

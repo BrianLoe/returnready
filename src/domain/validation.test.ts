@@ -3,8 +3,35 @@ import { createDemoReturnState } from '../fixtures/demoReturn';
 import type { Currency } from './model';
 import { recordAcquisitionDetails } from './acquisition';
 import { validateReviewPack } from './validation';
+import { validateDraftReviewPack } from './validation';
+import { recordDeductions } from './recordDeductions';
+import { recordDisposals } from './recordDisposals';
 
 describe('validateReviewPack', () => {
+  it('validates the populated draft from deduction and disposal facts', () => {
+    const deduction = recordDeductions(createDemoReturnState(), [{
+      sourceRecordId: 'wfh-summary-01', category: 'work-from-home',
+      description: 'WFH hours', periodStart: '2025-07-08', periodEnd: '2026-05-19',
+      quantity: 40, unit: 'hours', currency: 'AUD', sourceLabel: 'wfh-hours-fy2025-26.csv',
+    }], 'agent', () => '2026-06-30T00:00:00.000Z');
+    expect(deduction.ok).toBe(true);
+    if (!deduction.ok) return;
+    const disposals = recordDisposals(deduction.value.state, [{
+      sourceRecordId: 'broker-aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30,
+      disposalDate: '2026-05-02', proceedsMinor: 525_000, currency: 'USD',
+      sourceLabel: 'foreign-broker-fy2025-26.csv',
+    }], 'agent', () => '2026-06-30T00:00:00.000Z');
+    expect(disposals.ok).toBe(true);
+    if (!disposals.ok) return;
+
+    const validation = validateDraftReviewPack(disposals.value.state);
+    expect(validation.canGenerate).toBe(false);
+    expect(validation.issues.map((issue) => issue.code).sort()).toEqual([
+      'deduction-amount-not-calculated',
+      'missing-acquisition',
+    ]);
+  });
+
   it('derives the AAPL blocker and BTC warning directly from facts, even without a prior reconcile call', () => {
     const state = createDemoReturnState();
     const { issues, canGenerate } = validateReviewPack(state);

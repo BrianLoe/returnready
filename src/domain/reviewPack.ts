@@ -21,6 +21,7 @@ import {
   deriveStatusFromIssues,
 } from './reconcile';
 import { validateReviewPack } from './validation';
+import { validateDraftReviewPack } from './validation';
 
 const REVIEW_PACK_ID = 'review-pack-2026';
 
@@ -48,6 +49,28 @@ export interface ReviewPackEventEntry {
   acquisitionProvenance: 'documentary' | 'user-attested' | 'missing';
 }
 
+export interface ReviewPackDeductionEntry {
+  sourceRecordId: string;
+  category: string;
+  description: string;
+  periodStart: string;
+  periodEnd: string;
+  quantity: number;
+  unit: string;
+  sourceLabel: string;
+  provenance: 'documentary' | 'user-attested';
+}
+
+export interface ReviewPackDisposalEntry {
+  sourceRecordId: string;
+  assetType: AssetClass;
+  symbol: string;
+  disposalDate: string;
+  status: EventStatus;
+  acquisitionProvenance: 'documentary' | 'user-attested' | 'missing';
+  sourceLabel: string;
+}
+
 export interface ReviewPack {
   id: string;
   generatedAt: string;
@@ -58,6 +81,8 @@ export interface ReviewPack {
   };
   evidenceIndex: readonly ReviewPackEvidenceIndexEntry[];
   eventReviewTable: readonly ReviewPackEventEntry[];
+  deductionEvidence: readonly ReviewPackDeductionEntry[];
+  disposalReviewTable: readonly ReviewPackDisposalEntry[];
   unresolvedWarnings: readonly ValidationIssue[];
   assumptionsAndLimitations: readonly string[];
   disclaimer: string;
@@ -95,6 +120,28 @@ function buildPack(
       status: deriveStatusFromIssues(issues.filter((issue) => issue.eventId === event.id)),
       acquisitionProvenance: event.acquisition.provenance,
     })),
+    deductionEvidence: state.deductions.map((deduction) => ({
+      sourceRecordId: deduction.sourceRecordId,
+      category: deduction.category,
+      description: deduction.description,
+      periodStart: deduction.periodStart,
+      periodEnd: deduction.periodEnd,
+      quantity: deduction.quantity,
+      unit: deduction.unit,
+      sourceLabel: deduction.sourceLabel,
+      provenance: deduction.provenance,
+    })),
+    disposalReviewTable: state.disposals.map((disposal) => ({
+      sourceRecordId: disposal.sourceRecordId,
+      assetType: disposal.assetType,
+      symbol: disposal.symbol,
+      disposalDate: disposal.disposalDate,
+      status: deriveStatusFromIssues(
+        issues.filter((issue) => issue.eventId === disposal.id),
+      ),
+      acquisitionProvenance: disposal.acquisition.provenance,
+      sourceLabel: disposal.sourceLabel,
+    })),
     unresolvedWarnings: issues.filter((issue) => issue.severity === 'warning'),
     assumptionsAndLimitations: ASSUMPTIONS_AND_LIMITATIONS,
     disclaimer: DISCLAIMER,
@@ -106,7 +153,10 @@ export function generateReviewPack(
   actor: Actor,
   now: () => string,
 ): Result<{ state: ReturnState; pack: ReviewPack }> {
-  const validation = validateReviewPack(state);
+  const validation =
+    state.deductions.length > 0 || state.disposals.length > 0 || state.events.length === 0
+      ? validateDraftReviewPack(state)
+      : validateReviewPack(state);
   if (!validation.canGenerate) {
     return {
       ok: false,

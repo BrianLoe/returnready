@@ -3,6 +3,7 @@
 
 import type { Actor, Currency, Result, ReturnState } from './model';
 import { buildActivityEntry, deepEqual, upsertIssuesForEvents } from './reconcile';
+import { refreshDraftIssues } from './draftValidation';
 
 const SUPPORTED_CURRENCIES: readonly string[] = ['AUD', 'USD'];
 
@@ -18,9 +19,10 @@ export function recordAcquisitionDetails(
   input: { eventId: string; acquisitionDate: string; unitPrice: number; currency: Currency },
   actor: Actor,
   now: () => string,
-): Result<{ state: ReturnState; eventId: string; fxEvidenceId: string }> {
+): Result<{ state: ReturnState; eventId: string; fxEvidenceId?: string }> {
+  const draftDisposal = state.disposals.find((candidate) => candidate.id === input.eventId);
   const event = state.events.find((candidate) => candidate.id === input.eventId);
-  if (!event) {
+  if (!draftDisposal && !event) {
     return {
       ok: false,
       error: { code: 'not_found', message: `Unknown event id: ${input.eventId}` },
@@ -36,7 +38,8 @@ export function recordAcquisitionDetails(
   // manual and WebMCP paths inherit the same rule. `invalid_input`, not
   // `blocked`: nothing is blocking generation; the input is simply not
   // applicable to an already-resolved event.
-  if (event.acquisition.provenance !== 'missing') {
+  const acquisitionProvenance = draftDisposal?.acquisition.provenance ?? event?.acquisition.provenance;
+  if (acquisitionProvenance !== 'missing') {
     return {
       ok: false,
       error: {
@@ -71,13 +74,56 @@ export function recordAcquisitionDetails(
     };
   }
 
-  if (input.acquisitionDate >= event.disposal.date) {
+  const disposalDate = draftDisposal?.disposalDate ?? event?.disposal.date;
+  if (disposalDate === undefined || input.acquisitionDate >= disposalDate) {
     return {
       ok: false,
       error: {
         code: 'invalid_input',
         message: 'acquisitionDate must be strictly before the disposal date.',
       },
+      changed: false,
+    };
+  }
+
+  if (draftDisposal) {
+    const clone = structuredClone(state);
+    const clonedDisposal = clone.disposals.find((candidate) => candidate.id === input.eventId);
+    if (!clonedDisposal) {
+      return {
+        ok: false,
+        error: { code: 'not_found', message: `Unknown event id: ${input.eventId}` },
+        changed: false,
+      };
+    }
+    clonedDisposal.acquisition = {
+      date: input.acquisitionDate,
+      unitPriceMinor: Math.round(input.unitPrice * 100),
+      currency: input.currency,
+      provenance: 'user-attested',
+    };
+    refreshDraftIssues(clone);
+    clone.activity.push(
+      buildActivityEntry(
+        clone,
+        actor,
+        'record-acquisition-details',
+        `Recorded user-attested acquisition details for ${input.eventId}.`,
+        input.eventId,
+        now,
+      ),
+    );
+    return {
+      ok: true,
+      changed: true,
+      value: { state: clone, eventId: input.eventId },
+    };
+  }
+
+  if (!event) {
+    return {
+      ok: false,
+      error: { code: 'not_found', message: `Unknown event id: ${input.eventId}` },
       changed: false,
     };
   }

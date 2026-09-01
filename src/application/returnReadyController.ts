@@ -50,7 +50,7 @@ export interface ReconcileSummary {
 
 export interface AcquisitionSummary {
   eventId: string;
-  fxEvidenceId: string;
+  fxEvidenceId?: string;
 }
 
 export interface ValidationSummary {

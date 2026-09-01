@@ -5,6 +5,8 @@ import { recordAcquisitionDetails } from './acquisition';
 import { deriveInvestmentsStatusFromIssues, deriveStatusFromIssues } from './reconcile';
 import { generateReviewPack } from './reviewPack';
 import { validateReviewPack } from './validation';
+import { recordDeductions } from './recordDeductions';
+import { recordDisposals } from './recordDisposals';
 
 const actor = 'human' as const;
 const fixedNow = () => '2026-08-31T00:00:00.000Z';
@@ -21,6 +23,42 @@ function attestAapl(state: ReturnType<typeof createDemoReturnState>) {
 }
 
 describe('generateReviewPack', () => {
+  it('generates a populated-draft pack from current deductions and disposals after blockers clear', () => {
+    const deduction = recordDeductions(createDemoReturnState(), [{
+      sourceRecordId: 'wfh-summary-01', category: 'work-from-home', description: 'WFH hours',
+      periodStart: '2025-07-08', periodEnd: '2026-05-19', quantity: 40, unit: 'hours',
+      currency: 'AUD', sourceLabel: 'wfh-hours-fy2025-26.csv',
+    }], 'agent', fixedNow);
+    expect(deduction.ok).toBe(true);
+    if (!deduction.ok) return;
+    const disposal = recordDisposals(deduction.value.state, [{
+      sourceRecordId: 'broker-aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30,
+      disposalDate: '2026-05-02', proceedsMinor: 525_000, currency: 'USD',
+      sourceLabel: 'foreign-broker-fy2025-26.csv',
+    }], 'agent', fixedNow);
+    expect(disposal.ok).toBe(true);
+    if (!disposal.ok) return;
+    const acquisition = recordAcquisitionDetails(disposal.value.state, {
+      eventId: 'disposal-broker-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150,
+      currency: 'USD',
+    }, 'human', fixedNow);
+    expect(acquisition.ok).toBe(true);
+    if (!acquisition.ok) return;
+
+    const result = generateReviewPack(acquisition.value.state, 'agent', fixedNow);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.pack.deductionEvidence).toEqual([
+      expect.objectContaining({ sourceRecordId: 'wfh-summary-01', quantity: 40 }),
+    ]);
+    expect(result.value.pack.disposalReviewTable).toEqual([
+      expect.objectContaining({ sourceRecordId: 'broker-aapl-01', acquisitionProvenance: 'user-attested' }),
+    ]);
+    expect(result.value.pack.unresolvedWarnings.map((issue) => issue.code)).toContain(
+      'deduction-amount-not-calculated',
+    );
+  });
+
   it('is blocked while the AAPL acquisition blocker remains, and leaves state unchanged', () => {
     const state = createDemoReturnState();
     const snapshot = structuredClone(state);

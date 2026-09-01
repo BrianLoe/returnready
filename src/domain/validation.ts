@@ -6,6 +6,15 @@
 
 import type { ReturnState, ValidationIssue } from './model';
 import { deriveIssuesForEvents } from './reconcile';
+import { deriveDraftIssues } from './draftValidation';
+
+export function validateDraftReviewPack(state: ReturnState): {
+  issues: readonly ValidationIssue[];
+  canGenerate: boolean;
+} {
+  const issues = deriveDraftIssues(state);
+  return { issues, canGenerate: !issues.some((issue) => issue.severity === 'blocker') };
+}
 
 export function validateReviewPack(state: ReturnState): {
   issues: readonly ValidationIssue[];
