@@ -72,7 +72,7 @@ export function AcquisitionForm({ eventId, symbol }: { eventId: string; symbol: 
       <p>Recorded as a user attestation, not documentary evidence.</p>
 
       <div className="form-row">
-        <label htmlFor={dateId}>Acquisition date (YYYY-MM-DD)</label>
+        <label htmlFor={dateId}>Historical acquisition date (YYYY-MM-DD)</label>
         <input
           id={dateId}
           name="acquisitionDate"

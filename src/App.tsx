@@ -14,6 +14,8 @@ import { ValidationModal } from './components/ValidationModal';
 import { ReviewPackView } from './components/ReviewPackView';
 import { registerReturnReadyTools } from './webmcp/registerTools';
 
+const demoNow = () => '2026-06-30T00:00:00.000Z';
+
 function ReturnReadyApp() {
   const controller = useReturnReadyController();
   const state = useReturnState();
@@ -38,9 +40,6 @@ function ReturnReadyApp() {
     return () => abortController.abort();
   }, [controller]);
 
-  const managedFundEvidence = state.evidence.find(
-    (item) => item.sourceType === 'managed-fund-statement' && item.facts.kind === 'managed-fund-statement',
-  );
   const foreignShareEvents = state.events.filter((event) => event.assetClass === 'foreign-share');
   const cryptoEvents = state.events.filter((event) => event.assetClass === 'crypto');
 
@@ -83,9 +82,15 @@ function ReturnReadyApp() {
   }
 
   return (
-    <main>
-      <h1>ReturnReady</h1>
-      <p>
+    <>
+      <header className="product-header">
+        <div className="product-header__inner">
+          <h1 className="product-wordmark"><span>Return</span>Ready</h1>
+        </div>
+      </header>
+      <main>
+      <h2 className="page-title">Prepare your 2025–26 return evidence</h2>
+      <p className="page-intro">
         Evidence-first preparation for your investment disposals. ReturnReady does not lodge returns or
         provide tax advice.
       </p>
@@ -97,49 +102,55 @@ function ReturnReadyApp() {
 
       <ReturnStepper state={state} readiness={readiness} />
 
-      <section id="income" aria-labelledby="income-heading">
+      <section id="income" className="return-section return-section--summary" aria-labelledby="income-heading">
         <h2 id="income-heading">Income</h2>
-        <p>{formatFixtureSectionStatus(state.incomeStatus)}</p>
+        <p className="reviewed-status"><span aria-hidden="true">✓</span> {formatFixtureSectionStatus(state.incomeStatus)}</p>
         <p>PAYG income statement summary.</p>
-        <p className="synthetic-marker">Synthetic demo data</p>
       </section>
 
-      <section id="deductions" aria-labelledby="deductions-heading">
+      <section id="deductions" className="return-section return-section--summary" aria-labelledby="deductions-heading">
         <h2 id="deductions-heading">Deductions</h2>
-        <p>{formatFixtureSectionStatus(state.deductionsStatus)}</p>
+        <p className="reviewed-status"><span aria-hidden="true">✓</span> {formatFixtureSectionStatus(state.deductionsStatus)}</p>
         <p>Work-related deduction summary.</p>
-        <p className="synthetic-marker">Synthetic demo data</p>
       </section>
 
-      <section id="investments" aria-labelledby="investments-heading">
-        <h2 id="investments-heading">Investments</h2>
+      <section
+        id="investments"
+        className="return-section return-section--primary"
+        aria-labelledby="investments-heading"
+      >
+        <div className="section-heading">
+          <p className="section-kicker">Active review area</p>
+          <h2 id="investments-heading">Investments</h2>
+        </div>
 
-        <article className="investment-card" aria-labelledby="managed-funds-heading">
-          <h3 id="managed-funds-heading">Managed funds</h3>
-          <p>{formatFixtureSectionStatus('previously-reviewed')}</p>
-          {managedFundEvidence && managedFundEvidence.facts.kind === 'managed-fund-statement' && (
-            <dl>
-              <div>
-                <dt>Holdings</dt>
-                <dd>{managedFundEvidence.facts.holdingCount}</dd>
-              </div>
-            </dl>
-          )}
-          <p className="synthetic-marker">Synthetic demo data</p>
-        </article>
+        <aside className="agent-workflow-callout" aria-labelledby="agent-workflow-heading">
+          <h3 id="agent-workflow-heading">Complete the evidence your way</h3>
+          <p>
+            Complete the missing details yourself, or ask your browser agent to reconcile the imported
+            evidence, record the missing acquisition details, and prepare the review pack.
+          </p>
+          <p className="agent-workflow-callout__note">
+            Agent actions use the same controls and appear in the audit trail below.
+          </p>
+        </aside>
 
-        <section aria-labelledby="foreign-shares-heading">
-          <h3 id="foreign-shares-heading">Foreign shares</h3>
-          {foreignShareEvents.map((event) => (
-            <InvestmentCard key={event.id} event={event} />
-          ))}
+        <section className="asset-group" aria-labelledby="foreign-shares-heading">
+          <h3 id="foreign-shares-heading">Imported foreign-share disposals</h3>
+          <div className="investment-list">
+            {foreignShareEvents.map((event) => (
+              <InvestmentCard key={event.id} event={event} />
+            ))}
+          </div>
         </section>
 
-        <section aria-labelledby="crypto-assets-heading">
-          <h3 id="crypto-assets-heading">Crypto assets</h3>
-          {cryptoEvents.map((event) => (
-            <InvestmentCard key={event.id} event={event} />
-          ))}
+        <section className="asset-group" aria-labelledby="crypto-assets-heading">
+          <h3 id="crypto-assets-heading">Imported crypto disposals</h3>
+          <div className="investment-list">
+            {cryptoEvents.map((event) => (
+              <InvestmentCard key={event.id} event={event} />
+            ))}
+          </div>
         </section>
 
         <div className="action-bar">
@@ -160,7 +171,7 @@ function ReturnReadyApp() {
 
       <ActivityStrip activity={state.activity} />
 
-      <section id="review-pack" aria-labelledby="review-pack-section-heading">
+      <section id="review-pack" className="return-section" aria-labelledby="review-pack-section-heading">
         <h2 id="review-pack-section-heading">Review pack</h2>
         {state.reviewPack ? (
           <ReviewPackView pack={state.reviewPack} events={state.events} />
@@ -177,13 +188,14 @@ function ReturnReadyApp() {
           onClose={handleCloseModal}
         />
       )}
-    </main>
+      </main>
+    </>
   );
 }
 
 export default function App() {
   return (
-    <ReturnReadyProvider>
+    <ReturnReadyProvider now={demoNow}>
       <ReturnReadyApp />
     </ReturnReadyProvider>
   );

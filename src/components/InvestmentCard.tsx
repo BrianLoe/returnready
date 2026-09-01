@@ -11,12 +11,17 @@ export function InvestmentCard({ event }: { event: InvestmentEvent }) {
   const needsAcquisitionDetails = event.acquisition.provenance === 'missing';
 
   return (
-    <article className="investment-card" aria-labelledby={`${event.id}-heading`}>
-      <h3 id={`${event.id}-heading`}>{event.symbol}</h3>
-      <p className={`status status--${event.status}`}>
-        <span aria-hidden="true">{icon}</span> {label}
-      </p>
-      <dl>
+    <article
+      className={`investment-record investment-record--${event.status}`}
+      aria-labelledby={`${event.id}-heading`}
+    >
+      <header className="investment-record__header">
+        <h4 id={`${event.id}-heading`}>{event.symbol}</h4>
+        <p className={`status status--${event.status}`}>
+          <span aria-hidden="true">{icon}</span> {label}
+        </p>
+      </header>
+      <dl className="investment-facts">
         <div>
           <dt>Quantity</dt>
           <dd>{event.quantity}</dd>
@@ -31,7 +36,6 @@ export function InvestmentCard({ event }: { event: InvestmentEvent }) {
         </div>
       </dl>
       {needsAcquisitionDetails && <AcquisitionForm eventId={event.id} symbol={event.symbol} />}
-      <p className="synthetic-marker">Synthetic demo data</p>
     </article>
   );
 }

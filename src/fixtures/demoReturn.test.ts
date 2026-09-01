@@ -114,7 +114,7 @@ describe('createDemoReturnState', () => {
     expect(msft.acquisition.date).toBeDefined();
     expect(msft.acquisition.unitPriceMinor).toBeDefined();
     expect(msft.acquisition.provenance).toBe('documentary');
-    expect(msft.disposal.date).toBeDefined();
+    expect(msft.disposal.date).toBe('2026-04-18');
     expect(msft.disposal.proceedsMinor).toBeGreaterThan(0);
     expect(msft.disposal.brokerageMinor).toBeGreaterThan(0);
     expect(msft.disposal.corporateAction).toBe('none-asserted');
@@ -132,7 +132,7 @@ describe('createDemoReturnState', () => {
     expect(aapl.acquisition.currency).toBe('USD');
 
     expect(aapl.quantity).toBeGreaterThan(0);
-    expect(aapl.disposal.date).toBeDefined();
+    expect(aapl.disposal.date).toBe('2026-05-02');
     expect(aapl.disposal.proceedsMinor).toBeGreaterThan(0);
     expect(aapl.disposal.brokerageMinor).toBeGreaterThan(0);
     expect(aapl.disposal.corporateAction).toBe('none-asserted');
@@ -150,7 +150,7 @@ describe('createDemoReturnState', () => {
     expect(btc.acquisition.date).toBeDefined();
     expect(btc.acquisition.unitPriceMinor).toBeDefined();
     expect(btc.acquisition.provenance).toBe('documentary');
-    expect(btc.disposal.date).toBeDefined();
+    expect(btc.disposal.date).toBe('2026-06-20');
     expect(btc.disposal.proceedsMinor).toBeGreaterThan(0);
     expect(btc.disposal.feeMinor).toBeUndefined();
   });

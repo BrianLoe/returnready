@@ -11,7 +11,7 @@ function getEvent(state: ReturnState, id: string): InvestmentEvent {
   return event;
 }
 
-// AAPL's disposal date (2023-05-02) is strictly after the fixture's
+// AAPL's disposal date (2026-05-02) is strictly after the fixture's
 // 2022-09-15/USD FX row, so this is a valid, FX-backed attestation that
 // resolves AAPL's missing-acquisition blocker.
 const AAPL_ACQUISITION_INPUT = {
@@ -223,7 +223,7 @@ describe('createReturnReadyController: recordAcquisitionDetails', () => {
     controller.subscribe(listener);
 
     const result = controller.recordAcquisitionDetails(
-      { ...AAPL_ACQUISITION_INPUT, acquisitionDate: '2023-05-02' },
+      { ...AAPL_ACQUISITION_INPUT, acquisitionDate: '2026-05-02' },
       'human',
     );
 

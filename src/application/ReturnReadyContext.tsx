@@ -21,10 +21,16 @@ import { createReturnReadyController, type ReturnReadyController } from './retur
 
 const ControllerContext = createContext<ReturnReadyController | null>(null);
 
-export function ReturnReadyProvider({ children }: { children: ReactNode }) {
+export function ReturnReadyProvider({
+  children,
+  now,
+}: {
+  children: ReactNode;
+  now?: () => string;
+}) {
   const controllerRef = useRef<ReturnReadyController | null>(null);
   if (controllerRef.current === null) {
-    controllerRef.current = createReturnReadyController();
+    controllerRef.current = createReturnReadyController(now ? { now } : undefined);
   }
 
   return (
@@ -65,7 +71,7 @@ export function useValidationModalOpen(): boolean {
 // they only format a value the domain has already computed.
 
 export function formatFixtureSectionStatus(_status: FixtureSectionStatus): string {
-  return 'Previously reviewed — not processed by this prototype';
+  return 'Reviewed';
 }
 
 export function formatInvestmentsStatus(status: InvestmentsStatus): string {

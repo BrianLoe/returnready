@@ -22,7 +22,7 @@ import {
 } from './reconcile';
 import { validateReviewPack } from './validation';
 
-const REVIEW_PACK_ID = 'review-pack-2025';
+const REVIEW_PACK_ID = 'review-pack-2026';
 
 const ASSUMPTIONS_AND_LIMITATIONS: readonly string[] = [
   'All figures shown are synthetic demo data for prototype evaluation only.',

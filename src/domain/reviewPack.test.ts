@@ -42,8 +42,8 @@ describe('generateReviewPack', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.changed).toBe(true);
-    expect(result.value.pack.id).toBe('review-pack-2025');
-    expect(result.value.state.reviewPackId).toBe('review-pack-2025');
+    expect(result.value.pack.id).toBe('review-pack-2026');
+    expect(result.value.state.reviewPackId).toBe('review-pack-2026');
 
     const { pack } = result.value;
     expect(pack.unresolvedWarnings).toHaveLength(1);
@@ -140,7 +140,7 @@ describe('generateReviewPack', () => {
     if (!second.ok) return;
 
     expect(second.changed).toBe(false);
-    expect(second.value.pack.id).toBe('review-pack-2025');
+    expect(second.value.pack.id).toBe('review-pack-2026');
     expect(second.value.state.activity).toHaveLength(activityCountAfterFirst);
   });
 });

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 
-const PREVIOUSLY_REVIEWED = 'Previously reviewed — not processed by this prototype';
+const PREVIOUSLY_REVIEWED = 'Reviewed';
 const AAPL_BLOCKER_MESSAGE =
   'Acquisition date and unit cost are required before this disposal can be evidence-complete for review.';
 const BTC_WARNING_MESSAGE =
@@ -29,14 +29,31 @@ describe('ReturnReady manual workflow', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    // --- Opening page: section statuses and synthetic-data markers -------
+    // --- Opening page: section statuses and visual hierarchy -------------
     const previouslyReviewed = screen.getAllByText(PREVIOUSLY_REVIEWED);
     expect(previouslyReviewed.length).toBeGreaterThanOrEqual(2); // Income + Deductions
 
-    expect(screen.getByText('Action required')).toBeVisible();
+    expect(screen.getAllByRole('img', { name: 'Reviewed' })).toHaveLength(2);
+    expect(screen.getByRole('img', { name: 'Action required' })).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Not yet generated' })).toBeVisible();
 
-    const syntheticMarkers = screen.getAllByText('Synthetic demo data');
-    expect(syntheticMarkers.length).toBeGreaterThanOrEqual(3); // Managed funds, Foreign shares, Crypto assets
+    expect(screen.getByRole('navigation', { name: 'Return steps' })).toHaveClass('evidence-trail');
+    expect(screen.getByRole('region', { name: 'Activity' })).toHaveClass('audit-trail');
+
+    expect(screen.queryByText('Synthetic demo data')).not.toBeInTheDocument();
+
+    const investmentsSection = screen.getByRole('region', { name: 'Investments' });
+    expect(investmentsSection).toHaveClass('return-section', 'return-section--primary');
+    expect(
+      within(investmentsSection).getByRole('region', { name: 'Imported foreign-share disposals' }),
+    ).toHaveClass(
+      'asset-group',
+    );
+    expect(within(investmentsSection).getByText(/complete the missing details yourself/i)).toBeVisible();
+    expect(within(investmentsSection).queryByText('Holdings')).not.toBeInTheDocument();
+    expect(within(investmentsSection).getByRole('article', { name: 'MSFT' })).toHaveClass(
+      'investment-record',
+    );
 
     // --- Reconcile, then attempt to generate: blocked --------------------
     await user.click(screen.getByRole('button', { name: /reconcile investment evidence/i }));
@@ -83,12 +100,13 @@ describe('ReturnReady manual workflow', () => {
     expect(screen.getByText('Foreign-exchange rate evidence')).toBeVisible();
     expect(screen.getByText('Foreign broker disposal export')).toBeVisible();
     expect(screen.getByText(DISCLAIMER)).toBeVisible();
+    expect(screen.getByText('Generated 2026-06-30T00:00:00.000Z')).toBeVisible();
 
     // --- Reset demo: exact opening UI restored ----------------------------
     await user.click(screen.getByRole('button', { name: /reset demo/i }));
 
     expect(screen.getAllByText(PREVIOUSLY_REVIEWED).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('Action required')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Action required' })).toBeVisible();
     expect(
       screen.queryByRole('heading', { name: /review pack generated/i }),
     ).not.toBeInTheDocument();
@@ -104,9 +122,9 @@ describe('ReturnReady manual workflow', () => {
     const priceInput = screen.getByLabelText(/unit price/i);
     const currencySelect = screen.getByLabelText(/currency/i);
 
-    // AAPL's disposal date is 2023-05-02; an acquisition date on/after it is invalid.
+    // AAPL's disposal date is 2026-05-02; an acquisition date on/after it is invalid.
     await user.clear(dateInput);
-    await user.type(dateInput, '2023-06-01');
+    await user.type(dateInput, '2026-06-01');
     await user.clear(priceInput);
     await user.type(priceInput, '150');
     await user.selectOptions(currencySelect, 'USD');

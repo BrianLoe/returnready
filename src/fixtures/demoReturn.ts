@@ -31,7 +31,7 @@ function deepFreeze<T>(value: T): T {
  * - evt-aapl: everything is present (quantity, disposal date, proceeds,
  *   disposal brokerage, dated disposal FX, no-corporate-action) except the
  *   acquisition date and USD unit cost, which are absent -> the single
- *   blocker. Its disposal date (2023-05-02) is strictly after the FX row at
+ *   blocker. Its disposal date (2026-05-02) is strictly after the FX row at
  *   2022-09-15/USD, which is the exact date+currency the demo attestation
  *   will later supply.
  * - evt-btc: acquisition, disposal, and FX facts are complete; only the
@@ -107,7 +107,7 @@ const rawFixture: ReturnState = {
             eventId: 'evt-msft',
             symbol: 'MSFT',
             quantity: 50,
-            disposalDate: '2023-04-18',
+            disposalDate: '2026-04-18',
             proceedsMinor: 1_400_000,
             brokerageMinor: 2_500,
             currency: 'USD',
@@ -117,7 +117,7 @@ const rawFixture: ReturnState = {
             eventId: 'evt-aapl',
             symbol: 'AAPL',
             quantity: 30,
-            disposalDate: '2023-05-02',
+            disposalDate: '2026-05-02',
             proceedsMinor: 525_000,
             brokerageMinor: 1_500,
             currency: 'USD',
@@ -142,7 +142,7 @@ const rawFixture: ReturnState = {
             eventId: 'evt-btc',
             symbol: 'BTC',
             quantity: 0.5,
-            disposalDate: '2023-06-20',
+            disposalDate: '2026-06-20',
             proceedsMinor: 1_500_000,
             currency: 'USD',
           },
@@ -162,11 +162,11 @@ const rawFixture: ReturnState = {
         kind: 'fx-rates',
         rates: [
           { date: '2021-03-10', currency: 'USD', rateToAud: 1.3021 },
-          { date: '2023-04-18', currency: 'USD', rateToAud: 1.5142 },
+          { date: '2026-04-18', currency: 'USD', rateToAud: 1.5142 },
           { date: '2022-09-15', currency: 'USD', rateToAud: 1.4834 },
-          { date: '2023-05-02', currency: 'USD', rateToAud: 1.4935 },
+          { date: '2026-05-02', currency: 'USD', rateToAud: 1.4935 },
           { date: '2021-11-01', currency: 'USD', rateToAud: 1.3452 },
-          { date: '2023-06-20', currency: 'USD', rateToAud: 1.5087 },
+          { date: '2026-06-20', currency: 'USD', rateToAud: 1.5087 },
         ],
       },
       rawText:
@@ -190,7 +190,7 @@ const rawFixture: ReturnState = {
         provenance: 'documentary',
       },
       disposal: {
-        date: '2023-04-18',
+        date: '2026-04-18',
         proceedsMinor: 1_400_000,
         currency: 'USD',
         brokerageMinor: 2_500,
@@ -217,7 +217,7 @@ const rawFixture: ReturnState = {
         provenance: 'missing',
       },
       disposal: {
-        date: '2023-05-02',
+        date: '2026-05-02',
         proceedsMinor: 525_000,
         currency: 'USD',
         brokerageMinor: 1_500,
@@ -242,7 +242,7 @@ const rawFixture: ReturnState = {
         provenance: 'documentary',
       },
       disposal: {
-        date: '2023-06-20',
+        date: '2026-06-20',
         proceedsMinor: 1_500_000,
         currency: 'USD',
       },

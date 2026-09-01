@@ -29,7 +29,7 @@ const fixedNow = () => '2026-08-31T00:00:00.000Z';
 
 // Same demo attestation used throughout the app's own tests (see
 // `returnReadyController.test.ts`, `registerTools.test.ts`,
-// `workflow.test.tsx`): AAPL's disposal date (2023-05-02) is strictly after
+// `workflow.test.tsx`): AAPL's disposal date (2026-05-02) is strictly after
 // the fixture's 2022-09-15/USD FX row, so this is a valid, FX-backed
 // acquisition attestation that resolves AAPL's missing-acquisition blocker.
 const AAPL_ACQUISITION = {
@@ -165,7 +165,7 @@ describe('manual/agent parity: same sequence, same domain outcome', () => {
     // --- Step 4: generate the review pack -----------------------------------------
     const generateB = await callTool<Result<{ packId: string }>>(tools, 'generate_review_pack', {});
     expect(generateB.ok).toBe(true);
-    if (generateB.ok) expect(generateB.value.packId).toBe('review-pack-2025');
+    if (generateB.ok) expect(generateB.value.packId).toBe('review-pack-2026');
 
     const generateA = controllerA.generateReviewPack('human');
     expect(generateA.ok).toBe(true);

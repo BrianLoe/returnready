@@ -121,10 +121,10 @@ describe('recordAcquisitionDetails', () => {
     const state = createDemoReturnState();
     const snapshot = structuredClone(state);
 
-    // evt-aapl disposal date is 2023-05-02; on-the-date must also be rejected.
+    // evt-aapl disposal date is 2026-05-02; on-the-date must also be rejected.
     const result = recordAcquisitionDetails(
       state,
-      { ...validInput, acquisitionDate: '2023-05-02' },
+      { ...validInput, acquisitionDate: '2026-05-02' },
       actor,
       fixedNow,
     );
@@ -136,7 +136,7 @@ describe('recordAcquisitionDetails', () => {
 
     const afterResult = recordAcquisitionDetails(
       state,
-      { ...validInput, acquisitionDate: '2023-06-01' },
+      { ...validInput, acquisitionDate: '2026-06-01' },
       actor,
       fixedNow,
     );

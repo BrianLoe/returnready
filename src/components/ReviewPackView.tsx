@@ -84,7 +84,6 @@ export function ReviewPackView({
       </section>
 
       <p className="disclaimer">{pack.disclaimer}</p>
-      <p className="synthetic-marker">Synthetic demo data</p>
     </section>
   );
 }

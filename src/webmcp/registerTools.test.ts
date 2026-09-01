@@ -8,7 +8,7 @@ import { registerReturnReadyTools, serializeToolResult } from './registerTools';
 
 const fixedNow = () => '2026-08-31T00:00:00.000Z';
 
-// AAPL's disposal date (2023-05-02) is strictly after the fixture's
+// AAPL's disposal date (2026-05-02) is strictly after the fixture's
 // 2022-09-15/USD FX row, so this is a valid, FX-backed attestation that
 // resolves AAPL's missing-acquisition blocker (mirrors
 // `returnReadyController.test.ts`'s own fixture-valid input).
@@ -441,7 +441,7 @@ describe('tool handlers: first mutation logs one activity entry, repeats log non
 
     const first = await callTool(registrations, 'generate_review_pack', {});
     expect((first.parsed as { ok: true; changed: boolean }).changed).toBe(true);
-    expect((first.parsed as { ok: true; value: { packId: string } }).value.packId).toBe('review-pack-2025');
+    expect((first.parsed as { ok: true; value: { packId: string } }).value.packId).toBe('review-pack-2026');
     expect(controller.getState().activity).toHaveLength(activityBeforeGenerate + 1);
     expect(listener).toHaveBeenCalledTimes(1);
 

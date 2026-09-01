@@ -9,7 +9,8 @@ export function ActivityStrip({ activity }: { activity: readonly ActivityEntry[]
   const latest = activity.at(-1);
 
   return (
-    <section className="activity-strip" aria-labelledby="activity-heading">
+    <section className="activity-strip audit-trail" aria-labelledby="activity-heading">
+      <p className="audit-trail__eyebrow">Human + agent audit trail</p>
       <h2 id="activity-heading">Activity</h2>
       <div aria-live="polite" className="visually-hidden">
         {latest ? `${latest.actor === 'human' ? 'You' : 'Agent'}: ${latest.description}` : ''}
