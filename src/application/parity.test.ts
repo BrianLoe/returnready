@@ -1,220 +1,87 @@
-// Proves that driving ReturnReady through the WebMCP tool surface (the
-// browser-agent path) produces the exact same domain outcome as driving the
-// same sequence of actions directly through the shared controller (the
-// manual/human path). This is the AGENTS.md "Testing and Verification"
-// requirement: "Browser verification that the manual and WebMCP paths
-// invoke the same behaviour" -- exercised here at the controller/tool-handler
-// level (Playwright's `e2e/manual-flow.spec.ts` covers the manual path in a
-// real browser separately).
-//
-// Two independent `ReturnReadyController` instances are created from the
-// same immutable fixture and driven with the same fixed `now()` so
-// timestamps are directly comparable rather than merely close. Controller A
-// is driven by calling its methods directly with actor `'human'` (exactly
-// what the manual UI in `App.tsx` does). Controller B is driven exclusively
-// by invoking the `execute()` function captured off each WebMCP tool
-// definition that `registerReturnReadyTools` would hand to a real host --
-// the same function a WebMCP-capable browser would call, not a
-// reimplementation of it.
-
 /// <reference types="webmcp-types" />
 
 import { describe, expect, it } from 'vitest';
-import type { ActivityEntry, Result, ReturnState, ValidationIssue } from '../domain/model';
-import { createReturnReadyController, type ReturnReadyController } from './returnReadyController';
-import { registerReturnReadyTools } from '../webmcp/registerTools';
+import type { ActivityEntry, DeductionInput, DisposalInput, ReturnState } from '../domain/model';
 import type { ReviewPack } from '../domain/reviewPack';
+import { registerReturnReadyTools } from '../webmcp/registerTools';
+import { createReturnReadyController, type ReturnReadyController } from './returnReadyController';
 
-const fixedNow = () => '2026-08-31T00:00:00.000Z';
+const now = () => '2026-06-30T00:00:00.000Z';
+const deduction: DeductionInput = { sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', currency: 'AUD', sourceLabel: 'wfh.csv' };
+const disposals: DisposalInput[] = [
+  { sourceRecordId: 'aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30, disposalDate: '2026-05-02', proceedsMinor: 525000, currency: 'USD', sourceLabel: 'broker.csv' },
+  { sourceRecordId: 'btc-01', assetType: 'crypto', symbol: 'BTC', quantity: 0.5, acquisitionDate: '2024-01-10', acquisitionUnitPriceMinor: 6000000, acquisitionCurrency: 'AUD', disposalDate: '2026-06-20', proceedsMinor: 8000000, currency: 'AUD', sourceLabel: 'crypto.csv' },
+];
+const acquisition = { eventId: 'disposal-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' as const };
 
-// Same demo attestation used throughout the app's own tests (see
-// `returnReadyController.test.ts`, `registerTools.test.ts`,
-// `workflow.test.tsx`): AAPL's disposal date (2026-05-02) is strictly after
-// the fixture's 2022-09-15/USD FX row, so this is a valid, FX-backed
-// acquisition attestation that resolves AAPL's missing-acquisition blocker.
-const AAPL_ACQUISITION = {
-  eventId: 'evt-aapl',
-  acquisitionDate: '2022-09-15',
-  unitPrice: 150,
-  currency: 'USD' as const,
-};
-
-const ALL_EVENT_IDS = ['evt-msft', 'evt-aapl', 'evt-btc'];
-
-// --- Capturing the WebMCP tool handlers without a real host ------------------
-//
-// `registerReturnReadyTools` reads the global `document.modelContext`
-// internally -- it takes no modelContext parameter -- so a fake is installed
-// on `document` for exactly the duration of registration, then the previous
-// value is restored. Each captured tool's own `execute(args)` is then called
-// directly: the exact function a real WebMCP host would invoke to run the
-// agent path, never a second implementation of it.
-
-interface CapturedTool {
-  execute: (args: unknown) => Promise<string>;
+function capture(controller: ReturnReadyController) {
+  const tools = new Map<string, WebMCP.ModelContextTool>();
+  const target = document as unknown as { modelContext?: unknown };
+  const previous = target.modelContext;
+  target.modelContext = { registerTool(tool: WebMCP.ModelContextTool) { tools.set(tool.name, tool); return Promise.resolve(); } };
+  try { registerReturnReadyTools(controller); } finally { target.modelContext = previous; }
+  return tools;
 }
 
-function captureTools(controller: ReturnReadyController): Map<string, CapturedTool> {
-  const captured = new Map<string, CapturedTool>();
-  const fakeModelContext = {
-    registerTool: (tool: WebMCP.ModelContextTool) => {
-      captured.set(tool.name, {
-        execute: (args: unknown) =>
-          tool.execute(args as Record<string, unknown>, {
-            signal: new AbortController().signal,
-          }) as Promise<string>,
-      });
-      return Promise.resolve();
-    },
-  };
-
-  const doc = document as unknown as { modelContext?: unknown };
-  const previous = doc.modelContext;
-  doc.modelContext = fakeModelContext;
-  try {
-    const registration = registerReturnReadyTools(controller);
-    if (!registration.available) {
-      throw new Error('WebMCP tool registration did not run against the fake modelContext.');
-    }
-  } finally {
-    doc.modelContext = previous;
-  }
-
-  return captured;
+async function call(tools: Map<string, WebMCP.ModelContextTool>, name: string, args: Record<string, unknown>) {
+  const tool = tools.get(name); if (!tool) throw new Error(`Missing ${name}`);
+  const raw = await tool.execute(args, { signal: new AbortController().signal });
+  if (typeof raw !== 'string') throw new Error('Expected serialized result');
+  return JSON.parse(raw) as { ok: boolean; changed: boolean };
 }
 
-async function callTool<T>(tools: Map<string, CapturedTool>, name: string, args: unknown): Promise<T> {
-  const tool = tools.get(name);
-  if (!tool) throw new Error(`Tool "${name}" was not registered.`);
-  const raw = await tool.execute(args);
-  return JSON.parse(raw) as T;
-}
-
-// --- Normalization: strip fields expected to legitimately differ ------------
-//
-// `actor` differs by design between the two paths ('human' vs 'agent'). Every
-// other activity field -- id, timestamp, action, description, recordId -- is
-// deterministic given the same fixed `now()` and the same call sequence, but
-// timestamp and description are stripped anyway per the parity contract so
-// this test never silently starts depending on incidental determinism in
-// message wording or clock plumbing.
-
-function normalizeActivity(entry: ActivityEntry): Pick<ActivityEntry, 'id' | 'action' | 'recordId'> {
-  return { id: entry.id, action: entry.action, recordId: entry.recordId };
-}
-
-function normalizeState(state: ReturnState): unknown {
+function activity(entry: ActivityEntry) { return { id: entry.id, action: entry.action, recordId: entry.recordId }; }
+function pack(value: ReviewPack | null) {
+  if (!value) return null;
+  const { generatedAt: _generatedAt, ...rest } = value;
   return {
-    ...state,
-    activity: state.activity.map(normalizeActivity),
-    // Strip the stored pack's `generatedAt` for the same reason the top-level
-    // pack comparison does (see `normalizePack`): the parity contract must not
-    // silently depend on incidental clock determinism. Both controllers share
-    // `fixedNow` so it matches today, but strip it regardless.
-    reviewPack: state.reviewPack ? normalizePack(state.reviewPack) : null,
+    ...rest,
+    deductionEvidence: rest.deductionEvidence.map(({ provenance: _provenance, ...entry }) => entry),
+    disposalReviewTable: rest.disposalReviewTable,
+  };
+}
+function state(value: ReturnState) {
+  return {
+    ...value,
+    deductions: value.deductions.map(({ provenance: _provenance, ...entry }) => entry),
+    disposals: value.disposals.map(({ provenance: _provenance, ...entry }) => entry),
+    activity: value.activity.map(activity),
+    reviewPack: pack(value.reviewPack),
   };
 }
 
-function normalizePack(pack: ReviewPack): unknown {
-  const { generatedAt: _generatedAt, ...rest } = pack;
-  return rest;
-}
+describe('manual and WebMCP draft population parity', () => {
+  it('converges on equal entries, issues, and review pack', async () => {
+    const manual = createReturnReadyController({ now });
+    const agent = createReturnReadyController({ now });
+    const tools = capture(agent);
 
-describe('manual/agent parity: same sequence, same domain outcome', () => {
-  it('reconcile -> record acquisition -> validate -> generate: direct human calls and captured WebMCP tool calls converge on equal state, issues, and pack contents', async () => {
-    const controllerA = createReturnReadyController({ now: fixedNow }); // manual/human path
-    const controllerB = createReturnReadyController({ now: fixedNow }); // WebMCP/agent path
-    const tools = captureTools(controllerB);
+    expect(manual.recordDeductions([deduction], 'human').ok).toBe(true);
+    expect((await call(tools, 'record_deductions', { entries: [deduction] })).ok).toBe(true);
+    expect(manual.recordDisposals(disposals, 'human').ok).toBe(true);
+    expect((await call(tools, 'record_disposals', { entries: disposals })).ok).toBe(true);
+    expect(manual.recordAcquisitionDetails(acquisition, 'human').ok).toBe(true);
+    expect((await call(tools, 'record_acquisition_details', acquisition)).ok).toBe(true);
+    expect(manual.generateReviewPack('human').ok).toBe(true);
+    expect((await call(tools, 'generate_review_pack', {})).ok).toBe(true);
 
-    // --- Step 1: reconcile all three investment events ------------------------
-    const reconcileA = controllerA.reconcileInvestmentEvidence(ALL_EVENT_IDS, 'human');
-    const reconcileB = await callTool<Result<{ reconciledEventIds: readonly string[] }>>(
-      tools,
-      'reconcile_investment_evidence',
-      { eventIds: ALL_EVENT_IDS },
-    );
-    expect(reconcileA.ok).toBe(true);
-    expect(reconcileB.ok).toBe(true);
-    expect(reconcileB.changed).toBe(reconcileA.changed);
+    expect(state(agent.getState())).toEqual(state(manual.getState()));
+    expect(agent.getReturnDraft().issues).toEqual(manual.getReturnDraft().issues);
 
-    // --- Step 2: record the AAPL acquisition attestation -----------------------
-    const acquisitionA = controllerA.recordAcquisitionDetails(AAPL_ACQUISITION, 'human');
-    const acquisitionB = await callTool<Result<{ eventId: string; fxEvidenceId: string }>>(
-      tools,
-      'record_acquisition_details',
-      AAPL_ACQUISITION,
-    );
-    expect(acquisitionA.ok).toBe(true);
-    expect(acquisitionB.ok).toBe(true);
-    expect(acquisitionB.changed).toBe(acquisitionA.changed);
-
-    // --- Step 3: validate --------------------------------------------------------
-    const validateA = controllerA.validateReviewPack('human');
-    const validateB = await callTool<Result<{ issues: readonly ValidationIssue[]; canGenerate: boolean }>>(
-      tools,
-      'validate_review_pack',
-      {},
-    );
-    expect(validateA.ok).toBe(true);
-    expect(validateB.ok).toBe(true);
-    if (validateA.ok && validateB.ok) {
-      expect(validateB.value.issues).toEqual(validateA.value.issues);
-      expect(validateB.value.canGenerate).toBe(validateA.value.canGenerate);
-    }
-
-    // --- Step 4: generate the review pack -----------------------------------------
-    const generateB = await callTool<Result<{ packId: string }>>(tools, 'generate_review_pack', {});
-    expect(generateB.ok).toBe(true);
-    if (generateB.ok) expect(generateB.value.packId).toBe('review-pack-2026');
-
-    const generateA = controllerA.generateReviewPack('human');
-    expect(generateA.ok).toBe(true);
-
-    // --- Assert: whole-state parity (modulo actor/timestamp/description) ---------
-    expect(normalizeState(controllerB.getState())).toEqual(normalizeState(controllerA.getState()));
-
-    // --- Assert: review-pack contents parity --------------------------------------
-    // Re-derive each controller's own full pack directly (an idempotent
-    // repeat -- both already have `reviewPackId` set, so this makes no
-    // further state change) to compare the actual domain `ReviewPack` each
-    // path produced, not the WebMCP tool's deliberately size-projected
-    // output shape (see `registerTools.ts`'s `GenerateReviewPackValue`).
-    const packA = controllerA.generateReviewPack('human');
-    const packB = controllerB.generateReviewPack('agent');
-    expect(packA.ok).toBe(true);
-    expect(packB.ok).toBe(true);
-    if (packA.ok && packB.ok) {
-      expect(packA.changed).toBe(false);
-      expect(packB.changed).toBe(false);
-      expect(normalizePack(packB.value.pack)).toEqual(normalizePack(packA.value.pack));
-    }
+    const repeat = await call(tools, 'record_deductions', { entries: [deduction] });
+    expect(repeat).toMatchObject({ ok: true, changed: false });
   });
 
-  it('an invalid tool call and its equivalent invalid direct call both reject and leave state unchanged', async () => {
-    const controllerA = createReturnReadyController({ now: fixedNow });
-    const controllerB = createReturnReadyController({ now: fixedNow });
-    const tools = captureTools(controllerB);
-
-    const beforeA = controllerA.getState();
-    const beforeB = controllerB.getState();
-
-    // A negative acquisition value is rejected by both the direct domain
-    // call and the WebMCP tool's own defensive re-validation, before either
-    // ever reaches the controller.
-    const invalidInput = { ...AAPL_ACQUISITION, unitPrice: -5 };
-    const directResult = controllerA.recordAcquisitionDetails(invalidInput, 'human');
-    const toolResult = await callTool<Result<{ eventId: string }>>(
-      tools,
-      'record_acquisition_details',
-      invalidInput,
-    );
-
-    expect(directResult.ok).toBe(false);
-    expect(toolResult.ok).toBe(false);
-    if (!directResult.ok && !toolResult.ok) {
-      expect(toolResult.error.code).toBe(directResult.error.code);
-    }
-    expect(controllerA.getState()).toBe(beforeA);
-    expect(controllerB.getState()).toBe(beforeB);
+  it('rejects equivalent invalid input without changing either state', async () => {
+    const manual = createReturnReadyController({ now });
+    const agent = createReturnReadyController({ now });
+    const tools = capture(agent);
+    const beforeManual = manual.getState();
+    const beforeAgent = agent.getState();
+    const invalid = { ...deduction, periodStart: '2025-06-30' };
+    expect(manual.recordDeductions([invalid], 'human').ok).toBe(false);
+    expect((await call(tools, 'record_deductions', { entries: [invalid] })).ok).toBe(false);
+    expect(manual.getState()).toBe(beforeManual);
+    expect(agent.getState()).toBe(beforeAgent);
   });
 });

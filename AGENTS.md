@@ -6,7 +6,7 @@ These instructions apply to the entire repository. More specific `AGENTS.md` fil
 
 ## Project Overview
 
-ReturnReady is an evidence-first Australian tax-readiness web application. It presents a whole-return overview while concentrating its interactive depth on preparing foreign-share and crypto disposal evidence for accountant review.
+ReturnReady is an evidence-first Australian tax-readiness web application. A user attaches synthetic deduction worksheets, foreign-broker statements, and crypto exports to Codex; Codex interprets those files outside the app and uses WebMCP to populate a sparse FY2025–26 draft for accountant review.
 
 The application uses WebMCP so a browser agent can invoke the same domain actions available through the human interface. Agent actions must remain visible, reviewable, and reversible in the page.
 
@@ -14,7 +14,7 @@ ReturnReady is a preparation aid. It does not lodge tax returns, provide tax or 
 
 ## Sources of Truth
 
-- Product and technical design: [`docs/superpowers/specs/2026-08-31-returnready-design.md`](docs/superpowers/specs/2026-08-31-returnready-design.md)
+- Product and technical design: [`docs/superpowers/specs/2026-09-01-returnready-codex-population-pivot-design.md`](docs/superpowers/specs/2026-09-01-returnready-codex-population-pivot-design.md)
 - WebMCP overview: <https://developer.chrome.com/docs/ai/webmcp>
 - WebMCP imperative API: <https://developer.chrome.com/docs/ai/webmcp/imperative-api>
 - WebMCP tool security: <https://developer.chrome.com/docs/ai/webmcp/secure-tools>
@@ -25,8 +25,9 @@ Use the scripts defined in `package.json` once it exists. Do not invent substitu
 
 ## Product Boundaries
 
-- Keep the interactive product focused on investment evidence readiness.
-- Treat Income and Deductions as clearly labelled, previously reviewed demo fixtures unless the specification is deliberately revised.
+- Keep a small synthetic PAYG context prefilled; deductions and disposals start empty.
+- Support generic deduction and disposal entry, including WFH, foreign shares, and crypto.
+- ReturnReady never uploads, parses, reads, or stores attached file contents. Codex supplies structured facts and display-safe source labels only.
 - Use only synthetic financial and identity data.
 - Do not add ATO, broker, exchange, email, cloud-storage, or filesystem integrations without an approved design change.
 - Do not add tax lodgement, refund estimates, authoritative CGT calculations, parcel-selection advice, or tax-minimisation recommendations.
@@ -56,9 +57,9 @@ Use the imperative `document.modelContext.registerTool()` API directly unless th
 
 The approved tool surface is:
 
-- `get_return_readiness`
-- `list_investment_evidence`
-- `reconcile_investment_evidence`
+- `get_return_draft`
+- `record_deductions`
+- `record_disposals`
 - `record_acquisition_details`
 - `validate_review_pack`
 - `generate_review_pack`
@@ -72,13 +73,12 @@ For every tool:
 - Return stable identifiers and concise structured results.
 - Keep tool and parameter names within 30 characters, parameter descriptions within 150 characters, tool descriptions within 500 characters, and individual outputs within 1,500 characters.
 - Make state-changing calls visible in the activity strip.
-- Make repeated reconciliation, validation, and generation calls idempotent.
+- Make repeated record, validation, and generation calls idempotent by stable source record ID.
 - Return a structured error and leave state unchanged for invalid inputs or unknown identifiers.
 
 Use exact annotation fields:
 
-- `get_return_readiness`: `readOnlyHint: true`, `untrustedContentHint: false`
-- `list_investment_evidence`: `readOnlyHint: true`, `untrustedContentHint: true`
+- `get_return_draft`: `readOnlyHint: true`, `untrustedContentHint: false`
 - State-changing tools: `readOnlyHint: false`, `untrustedContentHint: false`
 
 Do not configure cross-origin exposure. Tool registration should fail safely when WebMCP is unavailable, while the manual interface remains functional.
@@ -87,8 +87,8 @@ Do not configure cross-origin exposure. Tool registration should fail safely whe
 
 Treat imported evidence as untrusted input even when the current fixtures are synthetic.
 
-- Expose only allow-listed normalized fields to the agent.
-- Do not return raw document instructions or hidden text through tool outputs.
+- Accept only allow-listed structured facts and display-safe source labels from the agent.
+- Never accept or return raw document text, file paths, URLs, instructions, or hidden text through tool inputs or outputs.
 - Never place secrets, credentials, real account identifiers, or personal financial information in fixtures, screenshots, tests, logs, or commits.
 - Do not make tool-triggered network requests.
 - Do not allow tools to lodge, submit, purchase, transfer, or delete evidence.
@@ -101,14 +101,15 @@ Do not claim that excluding hostile fixture text from normalized output constitu
 
 Domain behaviour must be deterministic and independently testable.
 
-- An event cannot be evidence-complete for review while required acquisition facts are absent.
+- Deduction periods and disposal dates must be within FY2025–26 (2025-07-01 through 2026-06-30 inclusive).
+- A disposal cannot be evidence-complete for review while required acquisition facts are absent.
 - Acquisition dates must precede disposal dates.
 - Monetary values must be positive and use an explicitly supported currency.
-- Required acquisition, disposal, fee, quantity, proceeds, corporate-action, and FX provenance must follow the design fixture contract.
+- Documentary facts supplied from attachments cannot be overwritten; conversational acquisition details are user-attested.
 - A missing crypto transaction fee remains a warning and prevents any tax-completeness claim.
 - Blocking issues prevent review-pack generation.
 - Non-blocking warnings remain visible in the generated pack.
-- Reconciliation and validation must operate over supplied evidence and event arrays, not fixture-specific conditionals.
+- Recording and validation must operate over supplied structured entries, not fixture-specific symbols or IDs.
 
 Changes to these rules require corresponding specification, fixture, and test updates.
 
@@ -139,11 +140,11 @@ Add or update tests with every behaviour change.
 
 Required coverage includes:
 
-- Pure domain tests for reconciliation, validation, warnings, blockers, and reset.
+- Pure domain tests for recording, validation, warnings, blockers, and reset.
 - Tool-contract tests for schemas, annotations, argument validation, bounded outputs, and state effects.
 - Idempotency tests proving first mutations create one activity entry and repeated calls create none.
-- An altered fixture proving reconciliation results depend on supplied data rather than hard-coded event names.
-- A normalization-boundary test proving hostile source text is excluded from agent-visible output.
+- Tests proving draft results depend on supplied structured data rather than hard-coded symbols or IDs.
+- Boundary tests proving raw text, paths, URLs, and unknown fields are rejected before state changes.
 - Browser verification that the manual and WebMCP paths invoke the same behaviour.
 
 Before claiming completion:
