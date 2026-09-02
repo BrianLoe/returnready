@@ -6,6 +6,12 @@ The user has scattered synthetic evidence—a work-from-home worksheet, a foreig
 
 ReturnReady is an evidence-organization prototype. It does not lodge tax returns, provide tax or financial advice, calculate authoritative tax, or certify that a return is complete.
 
+## Live demo
+
+Open ReturnReady at [returnready.brianloe7.chatgpt.site](https://returnready.brianloe7.chatgpt.site).
+
+The manual workflow works in an ordinary browser. Discovering and invoking the six structured tools requires a browser surface that supports the imperative WebMCP API.
+
 ## Demo workflow
 
 1. Start with a sparse FY2025–26 draft and small prefilled PAYG context.
