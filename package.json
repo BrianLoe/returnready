@@ -1,7 +1,7 @@
 {
   "name": "webmcp-challenge",
   "version": "1.0.0",
-  "description": "",
+  "description": "Organize synthetic tax evidence into a review-ready FY2025–26 draft through a shared human and WebMCP workflow.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,9 +12,14 @@
     "build": "tsc -b && vite build",
     "test:browser": "playwright test"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "webmcp",
+    "react",
+    "typescript",
+    "evidence-workflow"
+  ],
+  "author": "Brian Loe",
+  "license": "MIT",
   "dependencies": {
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

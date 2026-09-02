@@ -8,3 +8,13 @@ dist/
 coverage/
 test-results/
 playwright-report/
+
+# Private planning and local submission artifacts
+.remember/
+.claude/
+.codex/
+docs/local/
+docs/submission-checklist.md
+docs/testing/codex-population-demo.md
+docs/superpowers/plans/
+devpost-submission.md
