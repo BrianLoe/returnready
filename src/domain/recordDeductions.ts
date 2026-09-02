@@ -26,7 +26,7 @@ function validateInput(input: DeductionInput): string | null {
     return 'fixed-rate deductions must use hours.';
   }
   if (input.calculationMethod === 'actual-cost') {
-    return 'actual-cost deductions require itemised expense evidence and are not included in this demo.';
+    return 'actual-cost deductions require itemised expense evidence.';
   }
   if (input.currency !== 'AUD') return 'currency must be AUD.';
   if (!input.sourceLabel || input.sourceLabel.length > 120) return 'sourceLabel must be 1-120 characters.';
