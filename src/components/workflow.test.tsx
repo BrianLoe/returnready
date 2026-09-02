@@ -48,7 +48,7 @@ describe('ReturnReady sparse draft workflow', () => {
     expect(generate).toHaveFocus();
 
     const acquisition = screen.getByRole('form', { name: 'Record acquisition details for AAPL' });
-    await user.type(within(acquisition).getByLabelText(/historical acquisition date/i), '2022-09-15');
+    await user.type(within(acquisition).getByLabelText(/historical acquisition date/i), '2025-09-15');
     await user.type(within(acquisition).getByLabelText('Unit price'), '150');
     await user.selectOptions(within(acquisition).getByLabelText('Currency'), 'USD');
     await user.click(within(acquisition).getByRole('button', { name: 'Record acquisition details' }));

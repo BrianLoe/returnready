@@ -58,7 +58,7 @@ describe('ReturnReady WebMCP population tools', () => {
     await invoke(registrations, 'record_disposals', { entries: [{ sourceRecordId: 'broker-aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30, disposalDate: '2026-05-02', proceedsMinor: 525000, currency: 'USD', sourceLabel: 'broker.csv' }, { sourceRecordId: 'crypto-btc-01', assetType: 'crypto', symbol: 'BTC', quantity: 0.5, acquisitionDate: '2024-01-10', acquisitionUnitPriceMinor: 6000000, acquisitionCurrency: 'AUD', disposalDate: '2026-06-20', proceedsMinor: 8000000, currency: 'AUD', sourceLabel: 'crypto.csv' }] });
     const blocked = await invoke(registrations, 'generate_review_pack', {});
     expect(blocked.parsed).toMatchObject({ ok: false, error: { code: 'blocked' } });
-    const acquisition = await invoke(registrations, 'record_acquisition_details', { eventId: 'disposal-broker-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' });
+    const acquisition = await invoke(registrations, 'record_acquisition_details', { eventId: 'disposal-broker-aapl-01', acquisitionDate: '2025-09-15', unitPrice: 150, currency: 'USD' });
     expect(acquisition.parsed.ok).toBe(true);
     const generated = await invoke(registrations, 'generate_review_pack', {});
     expect(generated.parsed).toMatchObject({ ok: true, changed: true });

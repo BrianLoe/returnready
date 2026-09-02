@@ -36,7 +36,7 @@ describe('ReturnReadyController sparse draft', () => {
     expect(controller.generateReviewPack('agent')).toMatchObject({ ok: false, error: { code: 'blocked' } });
     expect(controller.isValidationModalOpen()).toBe(true);
     controller.closeValidationModal();
-    expect(controller.recordAcquisitionDetails({ eventId: 'disposal-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' }, 'human').ok).toBe(true);
+    expect(controller.recordAcquisitionDetails({ eventId: 'disposal-aapl-01', acquisitionDate: '2025-09-15', unitPrice: 150, currency: 'USD' }, 'human').ok).toBe(true);
     expect(controller.generateReviewPack('agent')).toMatchObject({ ok: true, changed: true });
     expect(controller.generateReviewPack('agent')).toMatchObject({ ok: true, changed: false });
     controller.reset();

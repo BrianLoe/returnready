@@ -27,7 +27,7 @@ async function populate(page: Page) {
   await expect(generate).toBeFocused();
 
   const acquisition = page.getByRole('form', { name: 'Record acquisition details for AAPL' });
-  await acquisition.getByLabel(/Historical acquisition date/).fill('2022-09-15');
+  await acquisition.getByLabel(/Historical acquisition date/).fill('2025-09-15');
   await acquisition.getByLabel('Unit price').fill('150');
   await acquisition.getByLabel('Currency').selectOption('USD');
   await acquisition.getByRole('button', { name: 'Record acquisition details' }).click();

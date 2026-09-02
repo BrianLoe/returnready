@@ -13,19 +13,19 @@ function missingDisposal() {
 
 describe('recordAcquisitionDetails for draft disposals', () => {
   it('records historical details as a user attestation and clears the blocker', () => {
-    const result = recordAcquisitionDetails(missingDisposal(), { eventId: 'disposal-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' }, 'human', now);
+    const result = recordAcquisitionDetails(missingDisposal(), { eventId: 'disposal-aapl-01', acquisitionDate: '2025-09-15', unitPrice: 150, currency: 'USD' }, 'human', now);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.state.disposals[0].acquisition).toEqual({ date: '2022-09-15', unitPriceMinor: 15000, currency: 'USD', provenance: 'user-attested' });
+    expect(result.value.state.disposals[0].acquisition).toEqual({ date: '2025-09-15', unitPriceMinor: 15000, currency: 'USD', provenance: 'user-attested' });
     expect(result.value.state.issues.some((issue) => issue.code === 'missing-acquisition')).toBe(false);
   });
 
   it('rejects invalid dates, prices, unknown IDs, and documentary overwrite without mutation', () => {
     const state = missingDisposal();
     for (const input of [
-      { eventId: 'missing', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' as const },
+      { eventId: 'missing', acquisitionDate: '2025-09-15', unitPrice: 150, currency: 'USD' as const },
       { eventId: 'disposal-aapl-01', acquisitionDate: '2026-05-02', unitPrice: 150, currency: 'USD' as const },
-      { eventId: 'disposal-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 0, currency: 'USD' as const },
+      { eventId: 'disposal-aapl-01', acquisitionDate: '2025-09-15', unitPrice: 0, currency: 'USD' as const },
     ]) {
       const before = structuredClone(state);
       expect(recordAcquisitionDetails(state, input, 'human', now).ok).toBe(false);

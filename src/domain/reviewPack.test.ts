@@ -19,7 +19,7 @@ describe('generateReviewPack for sparse drafts', () => {
   it('blocks on missing acquisition, then stores a warning-preserving evidence pack', () => {
     const state = populated();
     expect(generateReviewPack(state, 'agent', now)).toMatchObject({ ok: false, error: { code: 'blocked' } });
-    const acquisition = recordAcquisitionDetails(state, { eventId: 'disposal-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' }, 'human', now);
+    const acquisition = recordAcquisitionDetails(state, { eventId: 'disposal-aapl-01', acquisitionDate: '2025-09-15', unitPrice: 150, currency: 'USD' }, 'human', now);
     if (!acquisition.ok) throw new Error('setup failed');
     const result = generateReviewPack(acquisition.value.state, 'agent', now);
     expect(result.ok).toBe(true);
@@ -32,7 +32,7 @@ describe('generateReviewPack for sparse drafts', () => {
 
   it('returns the stored pack without timestamp or activity drift on repeat', () => {
     const state = populated();
-    const acquisition = recordAcquisitionDetails(state, { eventId: 'disposal-aapl-01', acquisitionDate: '2022-09-15', unitPrice: 150, currency: 'USD' }, 'human', now);
+    const acquisition = recordAcquisitionDetails(state, { eventId: 'disposal-aapl-01', acquisitionDate: '2025-09-15', unitPrice: 150, currency: 'USD' }, 'human', now);
     if (!acquisition.ok) throw new Error('setup failed');
     const first = generateReviewPack(acquisition.value.state, 'agent', now);
     if (!first.ok) throw new Error('generation failed');
