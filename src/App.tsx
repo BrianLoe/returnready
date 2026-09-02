@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ValidationSummary } from './application/returnReadyController';
 import {
   ReturnReadyProvider,
   useReturnReadyController,
@@ -25,7 +24,6 @@ function ReturnReadyApp() {
   const draft = controller.getReturnDraft();
 
   const generateButtonRef = useRef<HTMLButtonElement>(null);
-  const [lastValidation, setLastValidation] = useState<ValidationSummary | null>(null);
   const [webmcpAvailable, setWebmcpAvailable] = useState<boolean | null>(null);
 
   // Registers the six WebMCP tools against the same controller instance the
@@ -42,25 +40,12 @@ function ReturnReadyApp() {
     return () => abortController.abort();
   }, [controller]);
 
-  function refreshValidation() {
-    const result = controller.validateReviewPack('human');
-    if (result.ok) setLastValidation(result.value);
-  }
-
   function handleValidate() {
-    refreshValidation();
+    controller.validateReviewPack('human');
   }
 
   function handleGenerate() {
-    const result = controller.generateReviewPack('human');
-    if (result.ok) {
-      // The pack now lives in application state (`state.reviewPack`), which
-      // the controller's `notify()` (triggered above when `result.changed`)
-      // re-renders from -- no local state to set here.
-      setLastValidation(null);
-    } else {
-      refreshValidation();
-    }
+    controller.generateReviewPack('human');
   }
 
   function handleCloseModal() {
@@ -70,7 +55,6 @@ function ReturnReadyApp() {
 
   function handleReset() {
     controller.reset();
-    setLastValidation(null);
   }
 
   return (
@@ -157,8 +141,8 @@ function ReturnReadyApp() {
 
       {modalOpen && (
         <ValidationModal
-          issues={lastValidation?.issues ?? []}
-          canGenerate={lastValidation?.canGenerate ?? draft.canGenerate}
+          issues={draft.issues}
+          canGenerate={draft.canGenerate}
           records={[
             ...state.deductions.map((entry) => ({ id: entry.id, label: entry.description })),
             ...state.disposals.map((entry) => ({ id: entry.id, label: entry.symbol })),

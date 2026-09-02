@@ -1,7 +1,7 @@
 /// <reference types="webmcp-types" />
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import App from './App';
 
 describe('App', () => {
@@ -93,5 +93,67 @@ describe('App + WebMCP wiring', () => {
       expect(screen.getAllByText('Agent').length).toBeGreaterThan(0);
       expect(screen.getByRole('article', { name: 'WFH hours populated by Codex' })).toBeVisible();
     });
+  });
+
+  it('shows freshly derived blockers and warnings when an agent generation call opens validation', async () => {
+    const registrations: CapturedRegistration[] = [];
+    setModelContext({
+      registerTool: vi.fn((tool: WebMCP.ModelContextTool, options?: WebMCP.ModelContextRegisterToolOptions) => {
+        registrations.push({ tool, options });
+        return Promise.resolve();
+      }),
+    });
+
+    render(<App />);
+
+    const live = () => registrations.filter((registration) => registration.options?.signal?.aborted !== true);
+    await waitFor(() => expect(live().length).toBe(6));
+
+    const recordDisposals = live().find((registration) => registration.tool.name === 'record_disposals');
+    const generateReviewPack = live().find((registration) => registration.tool.name === 'generate_review_pack');
+    if (!recordDisposals || !generateReviewPack) throw new Error('required WebMCP tools were not registered');
+
+    await recordDisposals.tool.execute(
+      {
+        entries: [
+          {
+            sourceRecordId: 'broker-aapl-modal-test',
+            assetType: 'foreign-share',
+            symbol: 'AAPL',
+            quantity: 30,
+            disposalDate: '2026-05-02',
+            proceedsMinor: 525000,
+            currency: 'USD',
+            brokerageMinor: 1500,
+            sourceLabel: 'foreign-broker-fy2025-26.csv',
+          },
+          {
+            sourceRecordId: 'crypto-btc-modal-test',
+            assetType: 'crypto',
+            symbol: 'BTC',
+            quantity: 0.5,
+            acquisitionDate: '2021-11-01',
+            acquisitionUnitPriceMinor: 6000000,
+            acquisitionCurrency: 'USD',
+            disposalDate: '2026-06-20',
+            proceedsMinor: 1500000,
+            currency: 'USD',
+            sourceLabel: 'crypto-transactions-fy2025-26.csv',
+          },
+        ],
+      },
+      { signal: new AbortController().signal },
+    );
+
+    await generateReviewPack.tool.execute({}, { signal: new AbortController().signal });
+
+    const dialog = await screen.findByRole('dialog', { name: 'Review pack validation' });
+    expect(within(dialog).getByRole('heading', { name: 'Blocking issues' })).toBeVisible();
+    expect(within(dialog).getByText(/AAPL/)).toBeVisible();
+    expect(within(dialog).getByText(/acquisition date and unit cost are required/i)).toBeVisible();
+    expect(within(dialog).getByRole('heading', { name: 'Warnings' })).toBeVisible();
+    expect(within(dialog).getByText(/BTC/)).toBeVisible();
+    expect(within(dialog).getByText(/transaction fee evidence is missing/i)).toBeVisible();
+    expect(within(dialog).queryByText('No blocking issues or warnings remain.')).not.toBeInTheDocument();
   });
 });
