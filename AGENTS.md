@@ -31,6 +31,7 @@ Use the scripts defined in `package.json` once it exists. Do not invent substitu
 - Use only synthetic financial and identity data.
 - Do not add ATO, broker, exchange, email, cloud-storage, or filesystem integrations without an approved design change.
 - Do not add tax lodgement, refund estimates, authoritative CGT calculations, parcel-selection advice, or tax-minimisation recommendations.
+- Display recorded investment monetary facts, but do not calculate capital gains or losses.
 - Describe successful investment events as `Evidence complete for review`, not `tax complete`, `correct`, or `ready to lodge`.
 - Preserve unresolved warnings in the generated review pack.
 - Record conversationally supplied acquisition facts as user attestations, not documentary evidence.
@@ -102,6 +103,8 @@ Do not claim that excluding hostile fixture text from normalized output constitu
 Domain behaviour must be deterministic and independently testable.
 
 - Deduction periods and disposal dates must be within FY2025–26 (2025-07-01 through 2026-06-30 inclusive).
+- FY2025–26 work-from-home fixed-rate deductions use 70 cents per recorded hour. The domain calculates this amount; manual and WebMCP inputs cannot override the rate or result.
+- Actual-cost work-from-home deductions require itemised expense evidence and are visibly out of scope for this demo.
 - A disposal cannot be evidence-complete for review while required acquisition facts are absent.
 - Acquisition dates must precede disposal dates.
 - Monetary values must be positive and use an explicitly supported currency.

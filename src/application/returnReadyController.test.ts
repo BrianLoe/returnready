@@ -3,7 +3,7 @@ import { createDemoReturnState } from '../fixtures/demoReturn';
 import { createReturnReadyController } from './returnReadyController';
 
 const now = () => '2026-06-30T00:00:00.000Z';
-const deduction = { sourceRecordId: 'wfh-01', category: 'work-from-home' as const, description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours' as const, currency: 'AUD' as const, sourceLabel: 'wfh.csv' };
+const deduction = { sourceRecordId: 'wfh-01', category: 'work-from-home' as const, description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours' as const, calculationMethod: 'fixed-rate' as const, currency: 'AUD' as const, sourceLabel: 'wfh.csv' };
 const disposal = { sourceRecordId: 'aapl-01', assetType: 'foreign-share' as const, symbol: 'AAPL', quantity: 30, disposalDate: '2026-05-02', proceedsMinor: 525000, currency: 'USD' as const, sourceLabel: 'broker.csv' };
 
 describe('ReturnReadyController sparse draft', () => {

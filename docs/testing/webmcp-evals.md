@@ -16,7 +16,7 @@ PASS: Codex reads attachments outside ReturnReady; sends only structured facts a
 
 > I only attached my synthetic WFH worksheet. Add what you can.
 
-PASS: only `record_deductions` is required; no disposal is fabricated; the WFH quantity and FY dates match the file; the result is visible in the page and audit trail.
+PASS: only `record_deductions` is required; no disposal is fabricated; the WFH quantity and FY dates match the file; the tool supplies `calculationMethod: fixed-rate`; the page derives and displays 40 hours × $0.70 = $28.00; the result is visible in the audit trail.
 
 ### 3. Invalid FY date
 

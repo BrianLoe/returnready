@@ -72,6 +72,7 @@ describe('App + WebMCP wiring', () => {
         periodEnd: '2026-06-30',
         quantity: 40,
         unit: 'hours',
+        calculationMethod: 'fixed-rate',
         currency: 'AUD',
         sourceLabel: 'wfh-hours-fy2025-26.csv',
       }] },

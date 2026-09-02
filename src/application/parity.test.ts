@@ -7,7 +7,7 @@ import { registerReturnReadyTools } from '../webmcp/registerTools';
 import { createReturnReadyController, type ReturnReadyController } from './returnReadyController';
 
 const now = () => '2026-06-30T00:00:00.000Z';
-const deduction: DeductionInput = { sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', currency: 'AUD', sourceLabel: 'wfh.csv' };
+const deduction: DeductionInput = { sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', calculationMethod: 'fixed-rate', currency: 'AUD', sourceLabel: 'wfh.csv' };
 const disposals: DisposalInput[] = [
   { sourceRecordId: 'aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30, disposalDate: '2026-05-02', proceedsMinor: 525000, currency: 'USD', sourceLabel: 'broker.csv' },
   { sourceRecordId: 'btc-01', assetType: 'crypto', symbol: 'BTC', quantity: 0.5, acquisitionDate: '2024-01-10', acquisitionUnitPriceMinor: 6000000, acquisitionCurrency: 'AUD', disposalDate: '2026-06-20', proceedsMinor: 8000000, currency: 'AUD', sourceLabel: 'crypto.csv' },

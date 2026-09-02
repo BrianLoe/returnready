@@ -33,11 +33,19 @@ describe('ReturnReady sparse draft workflow', () => {
     expect(screen.queryByText('Holdings')).not.toBeInTheDocument();
 
     await addWfhDeduction(user);
-    expect(screen.getByRole('article', { name: 'WFH hours from worksheet' })).toBeVisible();
+    const deduction = screen.getByRole('article', { name: 'WFH hours from worksheet' });
+    expect(deduction).toBeVisible();
+    expect(within(deduction).getByText('Fixed rate')).toBeVisible();
+    expect(within(deduction).getByText('40 hours × $0.70')).toBeVisible();
+    expect(within(deduction).getByText('$28.00')).toBeVisible();
     expect(screen.getByText('Manual entry')).toBeVisible();
 
     await addAaplDisposal(user);
-    expect(screen.getByRole('article', { name: 'AAPL' })).toBeVisible();
+    const aapl = screen.getByRole('article', { name: 'AAPL' });
+    expect(aapl).toBeVisible();
+    expect(within(aapl).getByText('$5,250.00 USD')).toBeVisible();
+    expect(within(aapl).getByText('$15.00 USD')).toBeVisible();
+    expect(within(aapl).getAllByText('Missing')).toHaveLength(2);
     expect(screen.getByRole('form', { name: 'Record acquisition details for AAPL' })).toBeVisible();
 
     const generate = screen.getByRole('button', { name: 'Generate review pack' });
@@ -53,8 +61,10 @@ describe('ReturnReady sparse draft workflow', () => {
     await user.selectOptions(within(acquisition).getByLabelText('Currency'), 'USD');
     await user.click(within(acquisition).getByRole('button', { name: 'Record acquisition details' }));
 
+    expect(within(aapl).getByText('$150.00 USD')).toBeVisible();
+
     await user.click(generate);
-    expect(await screen.findByRole('heading', { name: /review pack generated with unresolved warning/i })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: /^review pack generated$/i })).toBeVisible();
     expect(screen.getByText(/WFH hours from worksheet: 40 hours/)).toBeVisible();
     expect(screen.getAllByText('user-attested').length).toBeGreaterThan(0);
     expect(screen.getByText('Generated 2026-06-30T00:00:00.000Z')).toBeVisible();

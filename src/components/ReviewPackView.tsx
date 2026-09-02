@@ -5,6 +5,10 @@
 
 import type { ReviewPack } from '../domain/reviewPack';
 
+function aud(minor: number): string {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(minor / 100);
+}
+
 function labelFor(pack: ReviewPack, recordId: string): string {
   return pack.disposalReviewTable.find((entry) => `disposal-${entry.sourceRecordId}` === recordId)?.symbol
     ?? pack.deductionEvidence.find((entry) => `deduction-${entry.sourceRecordId}` === recordId)?.description
@@ -24,7 +28,7 @@ export function ReviewPackView({ pack }: { pack: ReviewPack }) {
 
       {pack.deductionEvidence.length > 0 && <section aria-labelledby="review-pack-deductions-heading">
         <h3 id="review-pack-deductions-heading">Deduction evidence</h3>
-        <ul>{pack.deductionEvidence.map((entry) => <li key={entry.sourceRecordId}>{entry.description}: {entry.quantity} {entry.unit} — {entry.sourceLabel} ({entry.provenance})</li>)}</ul>
+        <ul>{pack.deductionEvidence.map((entry) => <li key={entry.sourceRecordId}>{entry.description}: {entry.quantity} {entry.unit}{entry.rateMinorPerHour === undefined ? '' : ` × ${aud(entry.rateMinorPerHour)}`}{entry.claimAmountMinor === undefined ? '' : ` = ${aud(entry.claimAmountMinor)}`} — {entry.sourceLabel} ({entry.provenance})</li>)}</ul>
       </section>}
 
       {pack.disposalReviewTable.length > 0 && <section aria-labelledby="review-pack-events-heading">

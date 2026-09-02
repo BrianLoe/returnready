@@ -57,6 +57,7 @@ export interface ActivityEntry {
 export type Provenance = 'documentary' | 'user-attested';
 export type DeductionCategory = 'work-from-home' | 'other-work-related';
 export type DeductionUnit = 'hours' | 'AUD';
+export type DeductionCalculationMethod = 'fixed-rate' | 'actual-cost';
 export type DisposalAssetType = 'foreign-share' | 'crypto';
 
 export interface IncomeSummary {
@@ -75,13 +76,15 @@ export interface DeductionInput {
   periodEnd: string;
   quantity: number;
   unit: DeductionUnit;
-  claimAmountMinor?: number;
+  calculationMethod: DeductionCalculationMethod;
   currency: 'AUD';
   sourceLabel: string;
 }
 
 export interface DeductionEntry extends DeductionInput {
   id: string;
+  rateMinorPerHour?: number;
+  claimAmountMinor?: number;
   provenance: Provenance;
 }
 

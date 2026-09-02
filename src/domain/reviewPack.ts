@@ -54,6 +54,9 @@ export interface ReviewPackDeductionEntry {
   periodEnd: string;
   quantity: number;
   unit: string;
+  calculationMethod: 'fixed-rate' | 'actual-cost';
+  rateMinorPerHour?: number;
+  claimAmountMinor?: number;
   sourceLabel: string;
   provenance: 'documentary' | 'user-attested';
 }
@@ -125,6 +128,9 @@ function buildPack(
       periodEnd: deduction.periodEnd,
       quantity: deduction.quantity,
       unit: deduction.unit,
+      calculationMethod: deduction.calculationMethod,
+      ...(deduction.rateMinorPerHour === undefined ? {} : { rateMinorPerHour: deduction.rateMinorPerHour }),
+      ...(deduction.claimAmountMinor === undefined ? {} : { claimAmountMinor: deduction.claimAmountMinor }),
       sourceLabel: deduction.sourceLabel,
       provenance: deduction.provenance,
     })),

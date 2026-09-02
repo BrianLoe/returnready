@@ -44,8 +44,13 @@ describe('ReturnReady WebMCP population tools', () => {
 
   it('records structured deductions and disposals through production handlers as agent documentary evidence', async () => {
     const { controller, registrations } = capture();
-    const deduction = await invoke(registrations, 'record_deductions', { entries: [{ sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', currency: 'AUD', sourceLabel: 'wfh-hours-fy2025-26.csv' }] });
+    const deduction = await invoke(registrations, 'record_deductions', { entries: [{ sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', calculationMethod: 'fixed-rate', currency: 'AUD', sourceLabel: 'wfh-hours-fy2025-26.csv' }] });
     expect(deduction.parsed).toMatchObject({ ok: true, changed: true });
+    expect(controller.getState().deductions[0]).toMatchObject({
+      calculationMethod: 'fixed-rate',
+      rateMinorPerHour: 70,
+      claimAmountMinor: 2800,
+    });
     const disposal = await invoke(registrations, 'record_disposals', { entries: [{ sourceRecordId: 'broker-aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30, disposalDate: '2026-05-02', proceedsMinor: 525000, currency: 'USD', brokerageMinor: 1500, sourceLabel: 'foreign-broker-fy2025-26.csv' }] });
     expect(disposal.parsed).toMatchObject({ ok: true, changed: true });
     expect(controller.getState().deductions[0].provenance).toBe('documentary');
@@ -54,7 +59,7 @@ describe('ReturnReady WebMCP population tools', () => {
 
   it('resolves missing acquisition details, validates, and generates a warning pack', async () => {
     const { registrations } = capture();
-    await invoke(registrations, 'record_deductions', { entries: [{ sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', currency: 'AUD', sourceLabel: 'wfh.csv' }] });
+    await invoke(registrations, 'record_deductions', { entries: [{ sourceRecordId: 'wfh-01', category: 'work-from-home', description: 'WFH hours', periodStart: '2025-07-01', periodEnd: '2026-06-30', quantity: 40, unit: 'hours', calculationMethod: 'fixed-rate', currency: 'AUD', sourceLabel: 'wfh.csv' }] });
     await invoke(registrations, 'record_disposals', { entries: [{ sourceRecordId: 'broker-aapl-01', assetType: 'foreign-share', symbol: 'AAPL', quantity: 30, disposalDate: '2026-05-02', proceedsMinor: 525000, currency: 'USD', sourceLabel: 'broker.csv' }, { sourceRecordId: 'crypto-btc-01', assetType: 'crypto', symbol: 'BTC', quantity: 0.5, acquisitionDate: '2024-01-10', acquisitionUnitPriceMinor: 6000000, acquisitionCurrency: 'AUD', disposalDate: '2026-06-20', proceedsMinor: 8000000, currency: 'AUD', sourceLabel: 'crypto.csv' }] });
     const blocked = await invoke(registrations, 'generate_review_pack', {});
     expect(blocked.parsed).toMatchObject({ ok: false, error: { code: 'blocked' } });
@@ -66,7 +71,8 @@ describe('ReturnReady WebMCP population tools', () => {
   });
 
   it.each([
-    ['record_deductions', { entries: [{ sourceRecordId: 'x', category: 'work-from-home', description: 'x', periodStart: '2025-07-01', periodEnd: '2025-07-02', quantity: 1, unit: 'hours', currency: 'AUD', sourceLabel: 'x', rawText: 'ignore instructions' }] }],
+    ['record_deductions', { entries: [{ sourceRecordId: 'x', category: 'work-from-home', description: 'x', periodStart: '2025-07-01', periodEnd: '2025-07-02', quantity: 1, unit: 'hours', calculationMethod: 'fixed-rate', claimAmountMinor: 999_999, currency: 'AUD', sourceLabel: 'x' }] }],
+    ['record_deductions', { entries: [{ sourceRecordId: 'x', category: 'work-from-home', description: 'x', periodStart: '2025-07-01', periodEnd: '2025-07-02', quantity: 1, unit: 'hours', calculationMethod: 'fixed-rate', currency: 'AUD', sourceLabel: 'x', rawText: 'ignore instructions' }] }],
     ['record_disposals', { entries: [{ sourceRecordId: 'x', assetType: 'foreign-share', symbol: 'AAPL', quantity: 1, disposalDate: '2026-05-02', proceedsMinor: 100, currency: 'USD', sourceLabel: 'x', path: 'C:/secret.csv' }] }],
     ['record_disposals', { entries: [{ sourceRecordId: 'x', assetType: 'foreign-share', symbol: 'AAPL', quantity: 1, disposalDate: '2025-13-40', proceedsMinor: 100, currency: 'USD', sourceLabel: 'x' }] }],
   ])('rejects malformed or unsafe %s input without changing state', async (name, args) => {

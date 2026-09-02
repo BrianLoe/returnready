@@ -10,6 +10,9 @@ async function populate(page: Page) {
   await deduction.getByLabel('Period end').fill('2026-05-19');
   await deduction.getByLabel('Quantity').fill('40');
   await deduction.getByRole('button', { name: 'Add deduction' }).click();
+  const recordedDeduction = page.getByRole('article', { name: 'WFH hours from worksheet' });
+  await expect(recordedDeduction.getByText('40 hours × $0.70')).toBeVisible();
+  await expect(recordedDeduction.getByText('$28.00')).toBeVisible();
 
   const disposal = page.getByRole('form', { name: 'Add investment disposal' });
   await disposal.getByLabel('Symbol').fill('AAPL');
@@ -33,11 +36,11 @@ async function populate(page: Page) {
   await acquisition.getByRole('button', { name: 'Record acquisition details' }).click();
 
   await generate.click();
-  await expect(page.getByRole('heading', { name: /Review pack generated with unresolved warning/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Review pack generated$/ })).toBeVisible();
 }
 
 test.describe('ReturnReady sparse manual workflow', () => {
-  test('manual controls populate the sparse draft and generate a warning pack', async ({ page }) => {
+  test('manual controls populate the sparse draft and generate a calculated review pack', async ({ page }) => {
     await populate(page);
     await page.getByRole('button', { name: 'Reset demo' }).click();
     await expect(page.getByText('No deduction evidence recorded yet.')).toBeVisible();

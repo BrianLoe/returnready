@@ -142,9 +142,11 @@ Required demonstration fields:
 - `periodEnd`
 - `quantity`
 - `unit`, restricted in P0 to `hours` or `AUD`
-- optional `claimAmountMinor`
+- `calculationMethod`, restricted in P0 to `fixed-rate`
 - `currency`
 - `sourceLabel`
+
+For FY2025–26 work-from-home evidence, ReturnReady derives the deduction amount at the fixed rate of 70 cents per recorded hour, following the [ATO working-from-home expense guidance](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/working-from-home-expenses). Neither the manual form nor `record_deductions` accepts an override amount. The UI displays the method, hours, rate, formula, and derived amount. Actual cost is named as an alternative method but is unavailable in this demonstration because it requires itemised expense evidence.
 
 ### 8.3 `record_disposals`
 
@@ -184,9 +186,13 @@ Every mutable entry has a stable `sourceRecordId`. Recording the same semantic e
 
 Entries extracted from a supplied worksheet are `documentary`. Facts supplied only in conversation are `user-attested`. Source labels are display metadata, not trusted file references.
 
+The fixed-rate calculation is deterministic domain logic: `round(hours × 70)` in AUD minor units. It is preparation arithmetic for the evidence draft, not an authoritative tax calculation.
+
 ### 9.2 Disposal provenance
 
 Documentary fields from broker or exchange records retain documentary provenance. Missing historical facts remain absent until explicitly supplied. A conversational answer fills only the approved missing fields and is visibly labelled `user-attested`.
+
+The disposal UI displays acquisition date and unit price, disposal proceeds, brokerage or transaction fee, currency, and provenance. Missing values remain explicit. It does not derive capital gain or loss.
 
 ## 10. Validation
 
@@ -198,7 +204,7 @@ Validation is deterministic and data-driven:
 - acquisition date on or after disposal: reject without mutation;
 - missing acquisition date or unit price: blocker;
 - missing crypto transaction fee: warning;
-- deduction evidence without a supplied claim amount: warning;
+- a successfully recorded fixed-rate work-from-home deduction includes a domain-derived claim amount and creates no missing-amount warning;
 - unsupported category or asset type: reject without mutation.
 
 Warnings do not block pack generation. Blockers do. ReturnReady never infers missing values.

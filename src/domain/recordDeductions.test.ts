@@ -12,12 +12,13 @@ const wfh: DeductionInput = {
   periodEnd: '2026-05-19',
   quantity: 40,
   unit: 'hours',
+  calculationMethod: 'fixed-rate',
   currency: 'AUD',
   sourceLabel: 'wfh-hours-fy2025-26.csv',
 };
 
 describe('recordDeductions', () => {
-  it('records a documentary batch immutably with one activity entry and a missing-amount warning', () => {
+  it('calculates the FY2025-26 fixed-rate amount and records it immutably', () => {
     const state = createDemoReturnState();
     const snapshot = structuredClone(state);
     const result = recordDeductions(state, [wfh], 'agent', now);
@@ -30,13 +31,15 @@ describe('recordDeductions', () => {
     expect(result.value.state.deductions[0]).toMatchObject({
       ...wfh,
       id: 'deduction-wfh-summary-01',
+      rateMinorPerHour: 70,
+      claimAmountMinor: 2_800,
       provenance: 'documentary',
     });
     expect(result.value.state.activity).toHaveLength(1);
     expect(result.value.state.activity[0]).toMatchObject({ actor: 'agent', action: 'record-deductions' });
-    expect(result.value.state.issues).toEqual(
+    expect(result.value.state.issues).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'deduction-amount-not-calculated', severity: 'warning' }),
+        expect.objectContaining({ code: 'deduction-amount-not-calculated' }),
       ]),
     );
   });
@@ -65,6 +68,7 @@ describe('recordDeductions', () => {
     [{ ...wfh, periodStart: '2025-06-30' }, 'periodStart'],
     [{ ...wfh, periodEnd: '2026-07-01' }, 'periodEnd'],
     [{ ...wfh, quantity: 0 }, 'quantity'],
+    [{ ...wfh, category: 'other-work-related' as const }, 'work-from-home'],
     [{ ...wfh, sourceLabel: 'x'.repeat(121) }, 'sourceLabel'],
   ])('rejects invalid input without mutation: %s', (input, messagePart) => {
     const state = createDemoReturnState();

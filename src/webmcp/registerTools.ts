@@ -12,7 +12,7 @@ import {
 } from './schemas';
 
 const MAX_OUTPUT = 1500;
-const DEDUCTION_KEYS = ['sourceRecordId', 'category', 'description', 'periodStart', 'periodEnd', 'quantity', 'unit', 'claimAmountMinor', 'currency', 'sourceLabel'] as const;
+const DEDUCTION_KEYS = ['sourceRecordId', 'category', 'description', 'periodStart', 'periodEnd', 'quantity', 'unit', 'calculationMethod', 'currency', 'sourceLabel'] as const;
 const DISPOSAL_KEYS = ['sourceRecordId', 'assetType', 'symbol', 'quantity', 'acquisitionDate', 'acquisitionUnitPriceMinor', 'acquisitionCurrency', 'disposalDate', 'proceedsMinor', 'currency', 'brokerageMinor', 'feeMinor', 'sourceLabel'] as const;
 
 type ParseResult<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -78,10 +78,9 @@ function parseDeduction(value: unknown): ParseResult<DeductionInput> {
   const source = text(value.sourceLabel, 'sourceLabel', 120); if (!source.ok) return source;
   if (value.category !== 'work-from-home' && value.category !== 'other-work-related') return { ok: false, message: 'category is unsupported.' };
   if (value.unit !== 'hours' && value.unit !== 'AUD') return { ok: false, message: 'unit is unsupported.' };
+  if (value.calculationMethod !== 'fixed-rate') return { ok: false, message: 'calculationMethod must be fixed-rate.' };
   if (value.currency !== 'AUD') return { ok: false, message: 'currency must be AUD.' };
-  let claimAmountMinor: number | undefined;
-  if (value.claimAmountMinor !== undefined) { const amount = positive(value.claimAmountMinor, 'claimAmountMinor', true); if (!amount.ok) return amount; claimAmountMinor = amount.value; }
-  return { ok: true, value: { sourceRecordId: id.value, category: value.category, description: description.value, periodStart: start.value, periodEnd: end.value, quantity: quantity.value, unit: value.unit, ...(claimAmountMinor === undefined ? {} : { claimAmountMinor }), currency: 'AUD', sourceLabel: source.value } };
+  return { ok: true, value: { sourceRecordId: id.value, category: value.category, description: description.value, periodStart: start.value, periodEnd: end.value, quantity: quantity.value, unit: value.unit, calculationMethod: 'fixed-rate', currency: 'AUD', sourceLabel: source.value } };
 }
 
 function parseDisposal(value: unknown): ParseResult<DisposalInput> {
@@ -133,7 +132,7 @@ function parseAcquisition(raw: unknown): ParseResult<AcquisitionInput> {
 function tools(controller: ReturnReadyController): WebMCP.ModelContextTool[] {
   return [
     { name: 'get_return_draft', title: 'Get return draft', description: 'Reads the current sparse return draft, issue counts, and whether the review pack can be generated. Does not calculate tax or lodge a return.', inputSchema: getReturnDraftSchema, annotations: { readOnlyHint: true, untrustedContentHint: false }, async execute(raw) { const args = emptyArgs(raw); return serializeToolResult(args.ok ? { ok: true, changed: false, value: controller.getReturnDraft() } : invalid(args.message)); } },
-    { name: 'record_deductions', title: 'Record deductions', description: 'Records structured deduction evidence interpreted by Codex from synthetic attachments. Accepts facts and a display-safe source label, never file contents or paths.', inputSchema: recordDeductionsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseBatch(raw, parseDeduction); return serializeToolResult(args.ok ? controller.recordDeductions(args.value, 'agent') : invalid(args.message)); } },
+    { name: 'record_deductions', title: 'Record deductions', description: 'Records structured deduction evidence interpreted by Codex from synthetic attachments. FY2025-26 WFH fixed-rate amounts are derived in the app; file contents, paths, and override amounts are rejected.', inputSchema: recordDeductionsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseBatch(raw, parseDeduction); return serializeToolResult(args.ok ? controller.recordDeductions(args.value, 'agent') : invalid(args.message)); } },
     { name: 'record_disposals', title: 'Record disposals', description: 'Records structured foreign-share or crypto disposal facts interpreted by Codex from synthetic attachments. Does not calculate gains or tax.', inputSchema: recordDisposalsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseBatch(raw, parseDisposal); return serializeToolResult(args.ok ? controller.recordDisposals(args.value, 'agent') : invalid(args.message)); } },
     { name: 'record_acquisition_details', title: 'Record acquisition details', description: 'Records user-attested historical acquisition details for one disposal that is missing them. Documentary facts cannot be overwritten.', inputSchema: recordAcquisitionDetailsSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = parseAcquisition(raw); return serializeToolResult(args.ok ? controller.recordAcquisitionDetails(args.value, 'agent') : invalid(args.message)); } },
     { name: 'validate_review_pack', title: 'Validate review pack', description: 'Derives blockers and warnings from the current draft and reports whether a review pack can be generated. Does not calculate tax.', inputSchema: validateReviewPackSchema, annotations: { readOnlyHint: false, untrustedContentHint: false }, async execute(raw) { const args = emptyArgs(raw); return serializeToolResult(args.ok ? controller.validateReviewPack('agent') : invalid(args.message)); } },
